@@ -11,12 +11,20 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
-from gpt_image2.client import GPTImage2Client
-from gpt_image2.config import PluginConfig
-from gpt_image2.image_io import materialize_images, normalize_choice, strip_command_text
-from gpt_image2.jobs import JobManager, describe_job
-from gpt_image2.message_io import AstrBotMessageSender
-from gpt_image2.models import JobOrigin, JobRequest
+if __package__:
+    from .gpt_image2.client import GPTImage2Client
+    from .gpt_image2.config import PluginConfig
+    from .gpt_image2.image_io import materialize_images, normalize_choice, strip_command_text
+    from .gpt_image2.jobs import JobManager, describe_job
+    from .gpt_image2.message_io import AstrBotMessageSender
+    from .gpt_image2.models import JobOrigin, JobRequest
+else:  # pragma: no cover - local smoke tests may import main.py as a top-level module.
+    from gpt_image2.client import GPTImage2Client
+    from gpt_image2.config import PluginConfig
+    from gpt_image2.image_io import materialize_images, normalize_choice, strip_command_text
+    from gpt_image2.jobs import JobManager, describe_job
+    from gpt_image2.message_io import AstrBotMessageSender
+    from gpt_image2.models import JobOrigin, JobRequest
 
 try:
     from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path

@@ -79,6 +79,24 @@ data/plugin_data/astrbot_plugin_gpt_image2/
 
 输出文件在插件启动时会按 `runtime.job_ttl_hours` 做 best-effort 过期清理，避免长期堆积。不会写入插件源码目录。
 
+## 本地 smoke test
+
+不需要真实 AstrBot 实例即可运行两个基础测试：
+
+```bash
+python -m pip install -r requirements.txt
+python -m compileall -q .
+python tests/smoke_core.py
+python tests/smoke_import_modes.py
+```
+
+其中 `smoke_import_modes.py` 会同时验证：
+
+- AstrBot package import：`astrbot_plugin_gpt_image2.main`
+- 本地 top-level import：`main`
+
+这能提前捕获插件安装时常见的相对导入/包路径错误。
+
 ## 开发来源
 
 - AstrBot 插件开发指南：https://docs.astrbot.app/dev/star/plugin-new.html
