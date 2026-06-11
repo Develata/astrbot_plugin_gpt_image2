@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -304,31 +305,31 @@ class GPTImage2Plugin(Star):
         )
 
     def _parse_prompt_and_options(self, text: str) -> dict[str, str]:
-        try:
-            parts = shlex.split(text)
-        except ValueError:
-            return {"prompt": text.strip()}
         opts: dict[str, str] = {}
         prompt_parts: list[str] = []
-        i = 0
-        while i < len(parts):
-            part = parts[i]
-            if part in {"--size", "-s"} and i + 1 < len(parts):
-                opts["size"] = parts[i + 1]
-                i += 2
-            elif part in {"--quality", "-q"} and i + 1 < len(parts):
-                opts["quality"] = parts[i + 1]
-                i += 2
-            elif part == "--format" and i + 1 < len(parts):
-                opts["output_format"] = parts[i + 1]
-                i += 2
-            elif part == "--background" and i + 1 < len(parts):
-                opts["background"] = parts[i + 1]
-                i += 2
+        for is_option, chunk in _split_prompt_option_chunks(text):
+            if not is_option:
+                if chunk.strip():
+                    prompt_parts.append(chunk.strip())
+                continue
+            key, value, remainder = _split_option_chunk(chunk)
+            if key in {"size", "s"}:
+                opts["size"] = value
+            elif key in {"quality", "q"}:
+                opts["quality"] = value
+            elif key in {"format", "output_format"}:
+                opts["output_format"] = value
+            elif key == "background":
+                opts["background"] = value
             else:
-                prompt_parts.append(part)
-                i += 1
-        opts["prompt"] = " ".join(prompt_parts).strip()
+                # Unknown options are kept in the prompt instead of being silently
+                # discarded. This mirrors OmniDraw's parser idea: only whitespace
+                # followed by --key starts an option, so ordinary hyphenated text
+                # such as "mid-journey" remains intact.
+                prompt_parts.append(chunk.strip())
+            if remainder:
+                prompt_parts.append(remainder)
+        opts["prompt"] = " ".join(part for part in prompt_parts if part).strip()
         return opts
 
     def _submit_message(self, job_id: str, kind: str, queue_position: int) -> str:
@@ -350,6 +351,37 @@ class GPTImage2Plugin(Star):
             f"queue_position: {queue_position}\n"
             "最终图片会由插件后台直接发送到当前会话。不要为了同一用户请求重复调用本工具。"
         )
+
+
+def _split_prompt_option_chunks(text: str) -> list[tuple[bool, str]]:
+    """Split prompt text at whitespace-prefixed --key boundaries.
+
+    Borrowed in spirit from OmniDraw's CommandParser: normal hyphenated words
+    inside the prompt are not option separators, while suffix options such as
+    `--size 1024x1024` can appear after free-form prompt text.
+    """
+    parts = re.split(r"(?=\s--[A-Za-z0-9_-]+)", " " + (text or ""))
+    chunks: list[tuple[bool, str]] = []
+    for index, part in enumerate(parts):
+        stripped = part.strip()
+        if not stripped:
+            continue
+        chunks.append((index > 0 and stripped.startswith("--"), stripped))
+    return chunks
+
+
+def _split_option_chunk(chunk: str) -> tuple[str, str, str]:
+    raw = chunk[2:].strip() if chunk.startswith("--") else chunk.strip()
+    try:
+        tokens = shlex.split(raw)
+    except ValueError:
+        tokens = raw.split()
+    if not tokens:
+        return "", "", ""
+    key = tokens[0].strip().lower().replace("-", "_")
+    value = str(tokens[1]).strip() if len(tokens) > 1 else "true"
+    remainder = " ".join(str(token) for token in tokens[2:]).strip() if len(tokens) > 2 else ""
+    return key, value, remainder
 
 
 HELP_TEXT = """GPT Image 2 Stable 用法

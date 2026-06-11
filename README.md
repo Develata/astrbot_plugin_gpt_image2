@@ -77,10 +77,11 @@ llm_tool.enabled: true
 data/plugin_data/astrbot_plugin_gpt_image2/
 ```
 
-不会写入插件源码目录。
+输出文件在插件启动时会按 `runtime.job_ttl_hours` 做 best-effort 过期清理，避免长期堆积。不会写入插件源码目录。
 
 ## 开发来源
 
 - AstrBot 插件开发指南：https://docs.astrbot.app/dev/star/plugin-new.html
 - AstrBot Plugin Configuration Wiki：https://github.com/AstrBotDevs/AstrBot/wiki/en-dev-star-guides-plugin-config
 - AstrBot AI / LLM Tool 指南：https://github.com/AstrBotDevs/AstrBot/wiki/zh-dev-star-guides-ai
+- OmniDraw 参考实现（参数解析、缓存清理、配置组织等设计）：https://github.com/diaomin66/astrbot_plugin_omnidraw

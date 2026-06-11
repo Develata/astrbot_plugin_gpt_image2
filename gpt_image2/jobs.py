@@ -44,6 +44,7 @@ class JobManager:
     async def start(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._cleanup_old_outputs()
         await self.load_state()
         self._stop_event.clear()
         self._worker_task = asyncio.create_task(self._worker_loop(), name="gpt-image2-worker")
@@ -131,6 +132,19 @@ class JobManager:
         data = {"jobs": [job.to_json() for job in self.list_recent(limit=200)]}
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(self.state_path)
+
+    def _cleanup_old_outputs(self) -> None:
+        """Best-effort output cache cleanup, inspired by OmniDraw's cache discipline."""
+        ttl = self.config.runtime.job_ttl_hours * 3600
+        cutoff = time.time() - ttl
+        for path in self.output_dir.glob("*"):
+            if not path.is_file() or path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+                continue
+            try:
+                if path.stat().st_mtime < cutoff:
+                    path.unlink(missing_ok=True)
+            except OSError:
+                continue
 
     async def _worker_loop(self) -> None:
         while not self._stop_event.is_set():
