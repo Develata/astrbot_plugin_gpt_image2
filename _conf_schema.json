@@ -34,25 +34,42 @@
         "type": "string",
         "description": "默认尺寸。",
         "default": "1536x1024",
-        "options": ["1024x1024", "1536x1024", "1024x1536"]
+        "options": [
+          "1024x1024",
+          "1536x1024",
+          "1024x1536"
+        ]
       },
       "quality": {
         "type": "string",
         "description": "默认质量。",
         "default": "medium",
-        "options": ["low", "medium", "high", "auto"]
+        "options": [
+          "low",
+          "medium",
+          "high",
+          "auto"
+        ]
       },
       "output_format": {
         "type": "string",
         "description": "默认输出格式。",
         "default": "png",
-        "options": ["png", "jpeg", "webp"]
+        "options": [
+          "png",
+          "jpeg",
+          "webp"
+        ]
       },
       "background": {
         "type": "string",
         "description": "默认背景。",
         "default": "auto",
-        "options": ["auto", "transparent", "opaque"]
+        "options": [
+          "auto",
+          "transparent",
+          "opaque"
+        ]
       }
     }
   },
@@ -62,12 +79,7 @@
     "items": {
       "global_max_concurrent": {
         "type": "int",
-        "description": "全局上游并发。建议保持 1，避免 gpt-image-2 429。",
-        "default": 1
-      },
-      "per_user_max_concurrent": {
-        "type": "int",
-        "description": "单用户并发保护。v0.1 建议保持 1。",
+        "description": "全局上游并发。v0.1 固定为 1，配置值会被强制钳制为 1，以避免 gpt-image-2 429。",
         "default": 1
       },
       "queue_max_size": {
@@ -89,6 +101,11 @@
         "type": "bool",
         "description": "任务完成时是否发送完成 caption。",
         "default": true
+      },
+      "per_user_queue_max_size": {
+        "type": "int",
+        "description": "单用户最多未完成任务数（queued + running）。",
+        "default": 5
       }
     }
   },
@@ -105,13 +122,22 @@
         "type": "string",
         "description": "LLM Tool 默认尺寸。",
         "default": "1536x1024",
-        "options": ["1024x1024", "1536x1024", "1024x1536"]
+        "options": [
+          "1024x1024",
+          "1536x1024",
+          "1024x1536"
+        ]
       },
       "default_quality": {
         "type": "string",
         "description": "LLM Tool 默认质量。",
         "default": "medium",
-        "options": ["low", "medium", "high", "auto"]
+        "options": [
+          "low",
+          "medium",
+          "high",
+          "auto"
+        ]
       },
       "require_explicit_image_intent": {
         "type": "bool",
@@ -138,6 +164,11 @@
         "type": "int",
         "description": "单张参考图最大 MB。",
         "default": 20
+      },
+      "materialize_timeout_seconds": {
+        "type": "int",
+        "description": "从当前/引用消息提取参考图的最大等待秒数。LLM Tool 会用它避免阻塞太久。",
+        "default": 10
       }
     }
   }

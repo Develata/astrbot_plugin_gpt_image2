@@ -5,7 +5,7 @@ display_name: GPT Image 2 Stable
 version: v0.1.0
 author: Develata
 repo: "https://github.com/Develata/astrbot_plugin_gpt_image2"
-astrbot_version: ">=4.5.7,<5"
+astrbot_version: ">=4.25.5,<5"
 support_platforms:
   - telegram
   - aiocqhttp

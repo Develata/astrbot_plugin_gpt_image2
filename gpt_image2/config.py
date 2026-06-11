@@ -24,7 +24,7 @@ class DefaultConfig:
 @dataclass(slots=True)
 class RuntimeConfig:
     global_max_concurrent: int = 1
-    per_user_max_concurrent: int = 1
+    per_user_queue_max_size: int = 5
     queue_max_size: int = 5
     job_ttl_hours: int = 24
     send_start_message: bool = True
@@ -46,6 +46,7 @@ class EditConfig:
     enabled: bool = True
     max_reference_images: int = 4
     max_reference_image_mb: int = 20
+    materialize_timeout_seconds: int = 10
 
 
 @dataclass(slots=True)
@@ -59,13 +60,18 @@ class PluginConfig:
     @classmethod
     def from_mapping(cls, raw: dict[str, Any] | None) -> "PluginConfig":
         raw = _unwrap_config_values(raw or {})
-        return cls(
+        cfg = cls(
             api=_merge_dataclass(APIConfig, raw.get("api")),
             defaults=_merge_dataclass(DefaultConfig, raw.get("defaults")),
             runtime=_merge_dataclass(RuntimeConfig, raw.get("runtime")),
             llm_tool=_merge_dataclass(LLMToolConfig, raw.get("llm_tool")),
             edit=_merge_dataclass(EditConfig, raw.get("edit")),
         )
+        # v0.1 deliberately runs a single worker request at a time. This is a
+        # product invariant for gpt-image-2 account-concurrency safety, not a
+        # performance tuning knob.
+        cfg.runtime.global_max_concurrent = 1
+        return cfg
 
     def validate(self) -> list[str]:
         errors: list[str] = []
@@ -79,8 +85,8 @@ class PluginConfig:
             errors.append("api.timeout_seconds 建议至少 60 秒")
         if self.runtime.global_max_concurrent < 1:
             errors.append("runtime.global_max_concurrent 必须 >= 1")
-        if self.runtime.per_user_max_concurrent < 1:
-            errors.append("runtime.per_user_max_concurrent 必须 >= 1")
+        if self.runtime.per_user_queue_max_size < 1:
+            errors.append("runtime.per_user_queue_max_size 必须 >= 1")
         if self.runtime.queue_max_size < 1:
             errors.append("runtime.queue_max_size 必须 >= 1")
         if self.edit.max_reference_images < 1:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import shlex
 from pathlib import Path
 from typing import Any
@@ -126,11 +127,7 @@ class GPTImage2Plugin(Star):
             yield event.plain_result("请提供改图 prompt，并附带或引用至少一张图片。")
             return
         try:
-            refs = await materialize_images(
-                event,
-                max_images=self.config.edit.max_reference_images,
-                max_bytes=self.config.edit.max_reference_image_mb * 1024 * 1024,
-            )
+            refs = await self._materialize_event_images(event)
             if not refs:
                 yield event.plain_result("未检测到参考图。请在当前消息附图，或引用一条包含图片的消息后使用 /gptedit。")
                 return
@@ -138,6 +135,11 @@ class GPTImage2Plugin(Star):
                 self._make_request("edit", prompt, parsed, reference_paths=refs, source="command"),
                 self._origin_from_event(event),
             )
+        except asyncio.TimeoutError:
+            yield event.plain_result(
+                "提取参考图超时，未提交改图任务。请稍后重试，或使用更小/更少的图片。"
+            )
+            return
         except Exception as exc:
             yield event.plain_result(f"提交 GPT Image 2 改图任务失败：{exc}")
             return
@@ -235,11 +237,7 @@ class GPTImage2Plugin(Star):
         if not self.manager:
             return "GPT Image 2 插件尚未初始化完成。"
         try:
-            refs = await materialize_images(
-                event,
-                max_images=self.config.edit.max_reference_images,
-                max_bytes=self.config.edit.max_reference_image_mb * 1024 * 1024,
-            )
+            refs = await self._materialize_event_images(event)
             if not refs:
                 return "未检测到参考图；没有提交改图任务。请让用户附图或引用包含图片的消息。"
             opts = {
@@ -251,8 +249,26 @@ class GPTImage2Plugin(Star):
                 self._origin_from_event(event),
             )
             return self._tool_submit_message(job.job_id, "edit", job.queue_position)
+        except asyncio.TimeoutError:
+            return "提取参考图超时，未提交改图任务。请让用户稍后重试，或使用更小/更少的图片。"
         except Exception as exc:
             return f"提交 GPT Image 2 改图任务失败：{exc}"
+
+    async def _materialize_event_images(self, event: AstrMessageEvent) -> list[str]:
+        """Resolve current/quoted image components to local paths within a short timeout.
+
+        This runs before enqueue because AstrBot message components/events are not a
+        stable serializable job payload. The timeout keeps LLM Tool calls fast and
+        prevents slow platform downloads from hitting AstrBot's tool timeout.
+        """
+        return await asyncio.wait_for(
+            materialize_images(
+                event,
+                max_images=self.config.edit.max_reference_images,
+                max_bytes=self.config.edit.max_reference_image_mb * 1024 * 1024,
+            ),
+            timeout=max(1, self.config.edit.materialize_timeout_seconds),
+        )
 
     def _data_dir(self) -> Path:
         if get_astrbot_plugin_data_path:

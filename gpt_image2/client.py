@@ -116,6 +116,8 @@ def extract_image_payload(response: dict[str, Any]) -> tuple[str, str]:
 
 
 def save_b64_image(value: str, output_path: Path) -> int:
+    if value.startswith("data:") and "," in value:
+        value = value.split(",", 1)[1]
     raw = base64.b64decode(value)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(raw)

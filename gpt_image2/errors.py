@@ -22,13 +22,14 @@ class APIStatusError(GPTImage2Error):
 
 def redact_secret(text: str) -> str:
     patterns = [
-        r"sk-[A-Za-z0-9_\-]{12,}",
-        r"Bearer\s+[A-Za-z0-9_\-.]{12,}",
-        r"Authorization:\s*[^\n\r]+",
+        (r"sk-[A-Za-z0-9_\-]{12,}", "<redacted>"),
+        (r"Bearer\s+[A-Za-z0-9_\-.]{12,}", "Bearer <redacted>"),
+        (r"Authorization:\s*[^\n\r]+", "Authorization: <redacted>"),
+        (r"([?&](?:api[_-]?key|key|token|access[_-]?token)=)[^&\s]+", r"\1<redacted>"),
     ]
     out = text
-    for pattern in patterns:
-        out = re.sub(pattern, "<redacted>", out, flags=re.IGNORECASE)
+    for pattern, replacement in patterns:
+        out = re.sub(pattern, replacement, out, flags=re.IGNORECASE)
     return out
 
 

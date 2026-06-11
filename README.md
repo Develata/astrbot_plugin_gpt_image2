@@ -55,8 +55,9 @@ api.base_url: https://your-openai-compatible-endpoint/v1
 api.api_key: sk-...
 api.model: gpt-image-2
 api.timeout_seconds: 900
-runtime.global_max_concurrent: 1
+runtime.global_max_concurrent: 1    # v0.1 会强制钳制为 1
 runtime.queue_max_size: 5
+runtime.per_user_queue_max_size: 5
 llm_tool.enabled: true
 ```
 

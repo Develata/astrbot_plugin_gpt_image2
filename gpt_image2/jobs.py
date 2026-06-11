@@ -64,14 +64,16 @@ class JobManager:
             active_count = sum(1 for job in self.jobs.values() if not job.is_terminal)
             if active_count >= self.config.runtime.queue_max_size:
                 raise RuntimeError(f"图片任务队列已满：{active_count}/{self.config.runtime.queue_max_size}")
-            running_same_user = sum(
+            pending_same_user = sum(
                 1
                 for job in self.jobs.values()
                 if job.origin.sender_id == origin.sender_id
                 and job.status in {JobStatus.QUEUED, JobStatus.RUNNING}
             )
-            if running_same_user >= self.config.runtime.per_user_max_concurrent + self.config.runtime.queue_max_size:
-                raise RuntimeError("当前用户图片任务过多，请等待已有任务完成")
+            if pending_same_user >= self.config.runtime.per_user_queue_max_size:
+                raise RuntimeError(
+                    f"当前用户图片任务过多：{pending_same_user}/{self.config.runtime.per_user_queue_max_size}，请等待已有任务完成"
+                )
             job_id = self._new_job_id(request.operation)
             job = ImageJob(job_id=job_id, request=request, origin=origin)
             self.jobs[job_id] = job
@@ -161,7 +163,12 @@ class JobManager:
 
     async def _run_job(self, job: ImageJob) -> None:
         if self.config.runtime.send_start_message:
-            await self.sender.send_text(job.origin.session, self._start_message(job))
+            try:
+                await self.sender.send_text(job.origin.session, self._start_message(job))
+            except Exception:
+                # A transient notice-delivery failure must not kill the worker or
+                # prevent the actual image request from running.
+                pass
         stage = "api_request"
         try:
             if job.request.operation == "generation":
@@ -193,14 +200,18 @@ class JobManager:
             job.status = JobStatus.SUCCEEDED
             job.finished_at = time.time()
             await self.save_state()
-            if self.config.runtime.send_finish_message:
-                await self.sender.send_image(job.origin.session, job.output_path, caption=self._finish_caption(job))
+            stage = "deliver_image"
+            caption = self._finish_caption(job) if self.config.runtime.send_finish_message else None
+            await self.sender.send_image(job.origin.session, job.output_path, caption=caption)
         except Exception as exc:
             job.status = JobStatus.FAILED
             job.finished_at = time.time()
             job.error = str(exc)
             await self.save_state()
-            await self.sender.send_text(job.origin.session, format_job_error(job.job_id, stage, exc))
+            try:
+                await self.sender.send_text(job.origin.session, format_job_error(job.job_id, stage, exc))
+            except Exception:
+                pass
 
     def _refresh_queue_positions(self) -> None:
         for idx, job_id in enumerate(self.queue, start=1):
