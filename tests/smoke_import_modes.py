@@ -114,6 +114,13 @@ def import_top_level_main() -> None:
         assert opts["prompt"] == "a mid-journey cat"
         assert opts["size"] == "1024x1024"
         assert opts["quality"] == "high"
+        assert plugin._submit_message("job", "generation", 1)
+        quiet_plugin = mod.GPTImage2Plugin(
+            sys.modules["astrbot.api.star"].Context(),
+            {"api": {"api_key": "sk-tes...test"}, "runtime": {"quiet_mode": True}},
+        )
+        assert quiet_plugin._submit_message("job", "generation", 1) == ""
+        assert "queued:job" in quiet_plugin._tool_submit_message("job", "generation", 1)
     finally:
         try:
             sys.path.remove(str(REPO))

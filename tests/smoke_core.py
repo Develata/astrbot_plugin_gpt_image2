@@ -4,14 +4,18 @@ import asyncio
 import base64
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
+from gpt_image2.access import AccessController
+from gpt_image2.cache import OutputCache
 from gpt_image2.client import extract_image_payload, save_b64_image
 from gpt_image2.config import PluginConfig
-from gpt_image2.errors import redact_secret
+from gpt_image2.errors import APIStatusError, redact_secret
+from gpt_image2.fallback import FallbackImageClient
 from gpt_image2.jobs import JobManager
 from gpt_image2.models import JobOrigin, JobRequest, JobStatus
 
@@ -22,6 +26,29 @@ class FakeClient:
 
     async def edit(self, **kwargs):
         return {"data": [{"url": "https://example.test/out.png"}]}
+
+
+class FailingClient:
+    def __init__(self, exc: BaseException):
+        self.exc = exc
+        self.calls = 0
+
+    async def generate(self, **kwargs):
+        self.calls += 1
+        raise self.exc
+
+    async def edit(self, **kwargs):
+        self.calls += 1
+        raise self.exc
+
+
+class RecordingClient(FakeClient):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def generate(self, **kwargs):
+        self.calls += 1
+        return await super().generate(**kwargs)
 
 
 class FakeSender:
@@ -139,6 +166,74 @@ async def test_per_user_queue_limit_and_global_clamp() -> None:
             await manager.stop()
 
 
+async def test_cache_cleanup_and_access_and_fallback() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        out = root / "outputs"
+        out.mkdir()
+        old = out / "old.png"
+        new = out / "new.png"
+        old.write_bytes(b"old")
+        new.write_bytes(b"newer")
+        old_time = time.time() - 3 * 3600
+        old.touch()
+        new.touch()
+        import os
+
+        os.utime(old, (old_time, old_time))
+        cache = OutputCache(out)
+        res = cache.cleanup(ttl_hours=1, max_cache_mb=0)
+        assert res.deleted_count == 1
+        assert not old.exists() and new.exists()
+
+        access_cfg = PluginConfig.from_mapping(
+            {
+                "access": {
+                    "enabled": True,
+                    "user_whitelist": "u-admin",
+                    "group_whitelist": "g1",
+                    "non_whitelist_daily_limit": 1,
+                }
+            }
+        ).access
+        ac = AccessController(config=access_cfg, state_path=root / "access.json")
+        assert ac.check(JobOrigin(session="s", sender_id="u-admin", group_id="g1", is_group_chat=True)).allowed
+        origin = JobOrigin(session="s", sender_id="u2", group_id="g1", is_group_chat=True)
+        decision = ac.check_and_reserve(origin)
+        assert decision.allowed and decision.reserved
+        assert not ac.check(origin).allowed
+        ac.release_reservation(origin, decision)
+        assert ac.check(origin).allowed
+        assert ac.check_and_reserve(origin).allowed
+        assert not ac.check(origin).allowed
+        assert ac.check(JobOrigin(session="s", sender_id="u2", group_id="g2", is_group_chat=True)).silent
+        assert ac.check(JobOrigin(session="private", sender_id="u3", group_id="", is_group_chat=False)).allowed
+
+        secondary = RecordingClient()
+        client = FallbackImageClient(
+            [
+                ("bad", FailingClient(APIStatusError(429, "busy"))),
+                ("good", secondary),
+            ]
+        )
+        await client.generate(prompt="x", size="1024x1024", quality="low", output_format="png", background="auto")
+        assert secondary.calls == 1
+        timeout_secondary = RecordingClient()
+        client = FallbackImageClient(
+            [
+                ("timeout", FailingClient(TimeoutError("maybe still running"))),
+                ("should_not_run", timeout_secondary),
+            ]
+        )
+        try:
+            await client.generate(prompt="x", size="1024x1024", quality="low", output_format="png", background="auto")
+        except RuntimeError as exc:
+            assert "maybe still running" in str(exc)
+        else:
+            raise AssertionError("expected conservative no-fallback failure")
+        assert timeout_secondary.calls == 0
+
+
 def test_payload_helpers() -> None:
     kind, value = extract_image_payload(
         {"data": [{"b64_json": "data:image/png;base64," + base64.b64encode(b"abc").decode()}]}
@@ -159,6 +254,7 @@ async def main() -> None:
     await test_success_send_image_even_without_finish_caption()
     await test_delivery_failure_stage_and_state()
     await test_per_user_queue_limit_and_global_clamp()
+    await test_cache_cleanup_and_access_and_fallback()
     print("core smoke tests passed")
 
 

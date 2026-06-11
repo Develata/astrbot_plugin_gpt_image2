@@ -4,7 +4,7 @@
 
 ## 设计目标
 
-- 只支持 `gpt-image-2`。
+- 只支持 `gpt-image-2` 兼容 Images API endpoint；fallback 也必须是同一 API 形态。
 - 只走 OpenAI-compatible Images API：`/v1/images/generations` 与 `/v1/images/edits`。
 - 支持命令触发与 LLM Tool 触发。
 - LLM Tool **不等待最终图片**，只返回 `job_id`。
@@ -15,11 +15,13 @@
 ## 命令
 
 ```text
-/gptimg <prompt>
+/gptimg <prompt>       # 无图=文生图；当前/引用消息有图=改图
 /gptimg --size 1536x1024 --quality medium <prompt>
-/gptedit <prompt>       # 当前消息附图，或引用包含图片的消息
+/gptedit <prompt>      # 兼容保留：强制改图
 /gptimg_status [job_id]
 /gptimg_cancel <job_id>
+/gptimg_cache
+/gptimg_cache_clear
 /gptimg_help
 ```
 
@@ -40,11 +42,13 @@
 工具语义：
 
 ```text
-LLM Tool -> enqueue local job -> immediately return job_id
+LLM Tool -> access check -> enqueue local job -> immediately return job_id
 background worker -> call gpt-image-2 -> save image -> send image to original chat
 ```
 
 因此即使图片生成耗时 300+ 秒，也不会卡住 AstrBot 的 tool executor。
+
+访问控制在 LLM Tool 路径同样生效：如果是用户让 agent 使用生图工具，插件按该事件的 sender/group 做白名单与每日额度检查。
 
 ## 配置
 
@@ -55,21 +59,93 @@ api.base_url: https://your-openai-compatible-endpoint/v1
 api.api_key: sk-...
 api.model: gpt-image-2
 api.timeout_seconds: 900
-runtime.global_max_concurrent: 1    # v0.1 会强制钳制为 1
+api.fallback_enabled: false
+api.fallback_endpoints: []
+
+runtime.global_max_concurrent: 1    # v0.1/v0.2 会强制钳制为 1
 runtime.queue_max_size: 5
 runtime.per_user_queue_max_size: 5
+runtime.cleanup_interval_minutes: 360    # 0=不做启动后的周期清理
+runtime.max_cache_mb: 1024               # 0=不按大小清理
+runtime.quiet_mode: false                # true=成功时只发送最终图片，不发提交/开始/完成固定文字
+
+prompt.prefix: ""
+
+access.enabled: false
+access.user_whitelist: ""
+access.group_whitelist: ""
+access.non_whitelist_daily_limit: 0
+
 llm_tool.enabled: true
 ```
 
 强烈建议给图像生成使用独立 key/channel，避免长图任务占用普通聊天模型并发。
 
+## Fallback endpoint
+
+`api.fallback_endpoints` 是 JSON 数组字符串，每个 endpoint 单独配置 URL/key/model：
+
+```json
+[
+  {
+    "base_url": "https://backup.example.com/v1",
+    "api_key": "sk-...",
+    "model": "gpt-image-2"
+  }
+]
+```
+
+保守策略：
+
+- 只在明确安全的状态码后 fallback：`401` / `403` / `404` / `429`。
+- 不在 timeout、`504`、`5xx` 后 fallback，因为原 endpoint 可能仍在处理非幂等 image POST，盲目 fallback 可能重复扣费或重复生成。
+- 不重试同一个 endpoint。
+
+## 静默模式
+
+`runtime.quiet_mode=true` 时，成功路径尽量不发送固定系统文字：
+
+- 命令提交成功后不回 `job_id/queue_position`。
+- 后台开始处理时不发开始提示。
+- 最终图片不带完成 caption。
+- 成功时用户只看到最终成品图。
+
+失败路径仍会发送脱敏错误摘要，避免任务失败却完全无声。
+
+LLM Tool 仍会向模型返回一个极短的内部排队结果，防止模型重复调用工具；最终用户侧是否显示这句话取决于 AstrBot/模型回复策略。
+
+## Prompt prefix
+
+`prompt.prefix` 会固定追加到用户 prompt 最前面：
+
+```text
+<prompt.prefix>
+<user prompt>
+```
+
+留空则不追加。
+
+## 访问控制
+
+`access.enabled=false` 时不做访问控制。
+
+开启后：
+
+- `access.group_whitelist` 为空：不限制群组。
+- `access.group_whitelist` 非空：不在群组白名单里的群消息会被静默忽略。
+- `access.user_whitelist` 为空：不限制用户，也不计算每日额度。
+- `access.user_whitelist` 非空：白名单用户无限制；非白名单用户受 `access.non_whitelist_daily_limit` 限制。
+- `access.non_whitelist_daily_limit=0`：禁止非用户白名单用户提交任务。
+
+白名单格式：逗号或换行分隔 ID。
+
 ## 失败处理
 
-- `429 Concurrency limit exceeded`: 不盲目重试，直接向原会话发送上游错误。
+- `429 Concurrency limit exceeded`: 可按 fallback 策略尝试备用 endpoint；没有 fallback 或备用也失败则直接向原会话发送上游错误。
 - `504` / timeout: 不自动重复 POST。图像请求是非幂等操作，重复提交可能重复扣费。
 - 插件重启时，未完成的 queued/running job 会被标记失败，避免重启后重复提交。
 
-## 持久化数据
+## 持久化数据与缓存
 
 运行时状态与生成图片保存在 AstrBot 数据目录：
 
@@ -77,7 +153,28 @@ llm_tool.enabled: true
 data/plugin_data/astrbot_plugin_gpt_image2/
 ```
 
-输出文件在插件启动时会按 `runtime.job_ttl_hours` 做 best-effort 过期清理，避免长期堆积。不会写入插件源码目录。
+主要文件：
+
+```text
+jobs.json          # job 状态，最多保存最近 200 个
+access_state.json  # 非白名单用户每日额度计数
+outputs/           # 插件自管输出图片缓存
+```
+
+缓存清理：
+
+- 插件启动时会清理一次 `outputs/`。
+- `runtime.cleanup_interval_minutes > 0` 时，启动后按该周期继续清理；最大 10080 分钟。
+- `runtime.job_ttl_hours` 控制按时间清理过期图片与历史 job。
+- `runtime.max_cache_mb > 0` 时，一旦输出缓存超过上限，会按最旧文件优先删除直到低于上限。
+- 插件只清理自己 `outputs/` 下的 `.png/.jpg/.jpeg/.webp`，不会清理 AstrBot adapter 的临时参考图。
+
+手动查看/清理：
+
+```text
+/gptimg_cache
+/gptimg_cache_clear
+```
 
 ## 本地 smoke test
 

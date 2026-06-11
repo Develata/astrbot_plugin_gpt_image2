@@ -8,7 +8,9 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Protocol
 
-from .client import GPTImage2Client, extract_image_payload, save_b64_image
+from .cache import CacheCleanupResult, OutputCache
+
+from .client import extract_image_payload, save_b64_image
 from .config import PluginConfig
 from .errors import format_job_error
 from .models import ImageJob, JobOrigin, JobRequest, JobStatus
@@ -19,12 +21,17 @@ class MessageSender(Protocol):
     async def send_image(self, session: str, path_or_url: str, caption: str | None = None) -> None: ...
 
 
+class ImageClient(Protocol):
+    async def generate(self, **kwargs: Any) -> dict[str, Any]: ...
+    async def edit(self, **kwargs: Any) -> dict[str, Any]: ...
+
+
 class JobManager:
     def __init__(
         self,
         *,
         config: PluginConfig,
-        client: GPTImage2Client,
+        client: ImageClient,
         sender: MessageSender,
         data_dir: Path,
     ) -> None:
@@ -34,9 +41,11 @@ class JobManager:
         self.data_dir = data_dir
         self.output_dir = data_dir / config.runtime.output_dir
         self.state_path = data_dir / config.runtime.state_file
+        self.cache = OutputCache(self.output_dir)
         self.jobs: dict[str, ImageJob] = {}
         self.queue: deque[str] = deque()
         self._worker_task: asyncio.Task | None = None
+        self._cleanup_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._changed = asyncio.Event()
         self._lock = asyncio.Lock()
@@ -44,10 +53,12 @@ class JobManager:
     async def start(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._cleanup_old_outputs()
         await self.load_state()
+        self.cleanup_cache()
         self._stop_event.clear()
         self._worker_task = asyncio.create_task(self._worker_loop(), name="gpt-image2-worker")
+        if self.config.runtime.cleanup_interval_minutes > 0:
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop(), name="gpt-image2-cache-cleanup")
 
     async def stop(self) -> None:
         self._stop_event.set()
@@ -56,6 +67,12 @@ class JobManager:
             self._worker_task.cancel()
             try:
                 await self._worker_task
+            except asyncio.CancelledError:
+                pass
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
             except asyncio.CancelledError:
                 pass
         await self.save_state()
@@ -133,18 +150,32 @@ class JobManager:
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(self.state_path)
 
-    def _cleanup_old_outputs(self) -> None:
-        """Best-effort output cache cleanup, inspired by OmniDraw's cache discipline."""
-        ttl = self.config.runtime.job_ttl_hours * 3600
-        cutoff = time.time() - ttl
-        for path in self.output_dir.glob("*"):
-            if not path.is_file() or path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
-                continue
+    def cleanup_cache(self, exclude_paths: set[str] | None = None) -> CacheCleanupResult:
+        active_paths = {
+            job.output_path
+            for job in self.jobs.values()
+            if job.status == JobStatus.RUNNING and job.output_path
+        }
+        if exclude_paths:
+            active_paths.update(exclude_paths)
+        return self.cache.cleanup(
+            ttl_hours=self.config.runtime.job_ttl_hours,
+            max_cache_mb=self.config.runtime.max_cache_mb,
+            exclude_paths={str(path) for path in active_paths},
+        )
+
+    def cache_stats(self):
+        return self.cache.stats()
+
+    async def _cleanup_loop(self) -> None:
+        interval_seconds = max(60, self.config.runtime.cleanup_interval_minutes * 60)
+        while not self._stop_event.is_set():
             try:
-                if path.stat().st_mtime < cutoff:
-                    path.unlink(missing_ok=True)
-            except OSError:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=interval_seconds)
+            except asyncio.TimeoutError:
+                self.cleanup_cache()
                 continue
+            break
 
     async def _worker_loop(self) -> None:
         while not self._stop_event.is_set():
@@ -176,7 +207,7 @@ class JobManager:
             return None
 
     async def _run_job(self, job: ImageJob) -> None:
-        if self.config.runtime.send_start_message:
+        if self.config.runtime.send_start_message and not self.config.runtime.quiet_mode:
             try:
                 await self.sender.send_text(job.origin.session, self._start_message(job))
             except Exception:
@@ -214,8 +245,10 @@ class JobManager:
             job.status = JobStatus.SUCCEEDED
             job.finished_at = time.time()
             await self.save_state()
+            if job.output_path and not str(job.output_path).startswith(("http://", "https://")):
+                self.cleanup_cache(exclude_paths={job.output_path})
             stage = "deliver_image"
-            caption = self._finish_caption(job) if self.config.runtime.send_finish_message else None
+            caption = self._finish_caption(job) if self.config.runtime.send_finish_message and not self.config.runtime.quiet_mode else None
             await self.sender.send_image(job.origin.session, job.output_path, caption=caption)
         except Exception as exc:
             job.status = JobStatus.FAILED

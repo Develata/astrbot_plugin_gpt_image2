@@ -35,6 +35,7 @@ class JobOrigin:
     sender_id: str = ""
     sender_name: str = ""
     group_id: str = ""
+    is_group_chat: bool = False
 
 
 @dataclass(slots=True)

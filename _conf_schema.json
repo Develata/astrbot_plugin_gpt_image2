@@ -23,6 +23,16 @@
         "type": "int",
         "description": "单次上游请求超时秒数。高质量大图建议 600-900。",
         "default": 900
+      },
+      "fallback_enabled": {
+        "type": "bool",
+        "description": "是否启用备用 gpt-image-2 endpoint。只在主 endpoint 失败后尝试备用 endpoint；不会重试同一 endpoint。",
+        "default": false
+      },
+      "fallback_endpoints": {
+        "type": "string",
+        "description": "备用 endpoint JSON 数组；每项包含 base_url/api_key/model。示例：[{\"base_url\":\"https://x/v1\",\"api_key\":\"sk-...\",\"model\":\"gpt-image-2\"}]",
+        "default": "[]"
       }
     }
   },
@@ -106,6 +116,25 @@
         "type": "int",
         "description": "单用户最多未完成任务数（queued + running）。",
         "default": 5
+      },
+      "cleanup_interval_minutes": {
+        "type": "int",
+        "description": "输出图片缓存周期清理间隔分钟；0 表示禁用周期清理。允许范围 0..10080。启动时仍会做一次清理。",
+        "default": 360,
+        "min": 0,
+        "max": 10080
+      },
+      "max_cache_mb": {
+        "type": "int",
+        "description": "输出图片缓存体积上限 MB；0 表示不按体积清理。允许范围 0..1048576。超过上限时按最旧文件优先清理。",
+        "default": 1024,
+        "min": 0,
+        "max": 1048576
+      },
+      "quiet_mode": {
+        "type": "bool",
+        "description": "静默生图模式。启用后，命令提交/开始处理/完成 caption 等固定系统文字不发送，成功时只直接发送最终图片；失败错误仍会发送。",
+        "default": false
       }
     }
   },
@@ -168,7 +197,48 @@
       "materialize_timeout_seconds": {
         "type": "int",
         "description": "从当前/引用消息提取参考图的最大等待秒数。LLM Tool 会用它避免阻塞太久。",
-        "default": 10
+        "default": 10,
+        "min": 1,
+        "max": 60
+      }
+    }
+  },
+  "prompt": {
+    "type": "object",
+    "description": "Prompt 追加设置。",
+    "items": {
+      "prefix": {
+        "type": "text",
+        "description": "固定追加到用户 prompt 最前面的文本；留空则不追加。",
+        "default": ""
+      }
+    }
+  },
+  "access": {
+    "type": "object",
+    "description": "访问控制与非白名单每日额度。白名单为空表示该维度不限制。",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "description": "是否启用访问控制。关闭时不检查用户/群组白名单和每日额度。",
+        "default": false
+      },
+      "user_whitelist": {
+        "type": "text",
+        "description": "用户 ID 白名单，逗号或换行分隔；为空表示不按用户白名单限制。",
+        "default": ""
+      },
+      "group_whitelist": {
+        "type": "text",
+        "description": "群组 ID 白名单，逗号或换行分隔；为空表示不按群组白名单限制。非白名单群组会静默忽略。",
+        "default": ""
+      },
+      "non_whitelist_daily_limit": {
+        "type": "int",
+        "description": "非用户白名单用户每日可提交图片任务数；0 表示禁止非白名单用户。允许范围 0..10000。",
+        "default": 0,
+        "min": 0,
+        "max": 10000
       }
     }
   }
