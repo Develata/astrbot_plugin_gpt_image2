@@ -117,6 +117,7 @@ class GPTImage2Plugin(Star):
             decision = self._reserve_access(origin)
             if not decision.allowed:
                 if decision.silent:
+                    _stop_event_silently(event)
                     return
                 yield event.plain_result(self._access_denied_message(decision.reason))
                 return
@@ -164,6 +165,7 @@ class GPTImage2Plugin(Star):
             decision = self._reserve_access(origin)
             if not decision.allowed:
                 if decision.silent:
+                    _stop_event_silently(event)
                     return
                 yield event.plain_result(self._access_denied_message(decision.reason))
                 return

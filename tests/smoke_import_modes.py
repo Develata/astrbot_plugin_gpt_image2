@@ -7,8 +7,10 @@ of main.py is also useful for local developer checks. This script verifies both
 import modes with minimal AstrBot API stubs.
 """
 
+import asyncio
 import importlib
 import sys
+import tempfile
 import types
 from pathlib import Path
 
@@ -115,12 +117,83 @@ def import_top_level_main() -> None:
         assert opts["size"] == "1024x1024"
         assert opts["quality"] == "high"
         assert plugin._submit_message("job", "generation", 1)
+
+        class StopEvent:
+            def __init__(self):
+                self.stopped = False
+
+            def stop_event(self):
+                self.stopped = True
+
+        stop_event = StopEvent()
+        mod._stop_event_silently(stop_event)
+        assert stop_event.stopped
+
         quiet_plugin = mod.GPTImage2Plugin(
             sys.modules["astrbot.api.star"].Context(),
             {"api": {"api_key": "sk-tes...test"}, "runtime": {"quiet_mode": True}},
         )
         assert quiet_plugin._submit_message("job", "generation", 1) == ""
         assert "queued:job" in quiet_plugin._tool_submit_message("job", "generation", 1)
+    finally:
+        try:
+            sys.path.remove(str(REPO))
+        except ValueError:
+            pass
+
+
+def test_silent_group_deny_stops_command_event() -> None:
+    clear_plugin_modules()
+    sys.path.insert(0, str(REPO))
+    try:
+        mod = importlib.import_module("main")
+        plugin = mod.GPTImage2Plugin(
+            sys.modules["astrbot.api.star"].Context(),
+            {
+                "api": {"api_key": "sk-tes...test"},
+                "access": {"enabled": True, "group_whitelist": "allowed-group"},
+            },
+        )
+        plugin.manager = object()
+        tmpdir = tempfile.TemporaryDirectory()
+        plugin.access = mod.AccessController(config=plugin.config.access, state_path=Path(tmpdir.name) / "access_state.json")
+
+        class FakeEvent:
+            def __init__(self):
+                self.stopped = False
+                self.unified_msg_origin = "stub:GroupMessage:denied-group"
+
+            def get_message_str(self):
+                return "/gptimg a cat"
+
+            def get_platform_name(self):
+                return "stub"
+
+            def get_sender_id(self):
+                return "user1"
+
+            def get_sender_name(self):
+                return "User"
+
+            def get_group_id(self):
+                return "denied-group"
+
+            def stop_event(self):
+                self.stopped = True
+
+            def plain_result(self, text):  # pragma: no cover - must not be called.
+                raise AssertionError(f"silent deny should not yield text: {text}")
+
+        event = FakeEvent()
+        outputs = []
+
+        async def run_handler():
+            async for item in plugin.gptimg(event):
+                outputs.append(item)
+
+        asyncio.run(run_handler())
+        assert outputs == []
+        assert event.stopped
     finally:
         try:
             sys.path.remove(str(REPO))
@@ -148,6 +221,7 @@ def import_package_main() -> None:
 def main() -> None:
     install_astrbot_stubs()
     import_top_level_main()
+    test_silent_group_deny_stops_command_event()
     import_package_main()
     print("import mode smoke passed")
 
