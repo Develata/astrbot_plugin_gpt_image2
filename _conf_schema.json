@@ -1,0 +1,144 @@
+{
+  "api": {
+    "type": "object",
+    "description": "OpenAI-compatible Images API 设置。",
+    "items": {
+      "base_url": {
+        "type": "string",
+        "description": "API Base URL，必须包含 /v1。",
+        "default": "https://api.openai.com/v1"
+      },
+      "api_key": {
+        "type": "string",
+        "description": "API Key。请使用只给图像通道的独立 key。",
+        "default": "",
+        "token": true
+      },
+      "model": {
+        "type": "string",
+        "description": "模型名。v0.1 仅支持 gpt-image-2。",
+        "default": "gpt-image-2"
+      },
+      "timeout_seconds": {
+        "type": "int",
+        "description": "单次上游请求超时秒数。高质量大图建议 600-900。",
+        "default": 900
+      }
+    }
+  },
+  "defaults": {
+    "type": "object",
+    "description": "默认图像参数。",
+    "items": {
+      "size": {
+        "type": "string",
+        "description": "默认尺寸。",
+        "default": "1536x1024",
+        "options": ["1024x1024", "1536x1024", "1024x1536"]
+      },
+      "quality": {
+        "type": "string",
+        "description": "默认质量。",
+        "default": "medium",
+        "options": ["low", "medium", "high", "auto"]
+      },
+      "output_format": {
+        "type": "string",
+        "description": "默认输出格式。",
+        "default": "png",
+        "options": ["png", "jpeg", "webp"]
+      },
+      "background": {
+        "type": "string",
+        "description": "默认背景。",
+        "default": "auto",
+        "options": ["auto", "transparent", "opaque"]
+      }
+    }
+  },
+  "runtime": {
+    "type": "object",
+    "description": "后台任务队列设置。",
+    "items": {
+      "global_max_concurrent": {
+        "type": "int",
+        "description": "全局上游并发。建议保持 1，避免 gpt-image-2 429。",
+        "default": 1
+      },
+      "per_user_max_concurrent": {
+        "type": "int",
+        "description": "单用户并发保护。v0.1 建议保持 1。",
+        "default": 1
+      },
+      "queue_max_size": {
+        "type": "int",
+        "description": "最大未完成任务数。",
+        "default": 5
+      },
+      "job_ttl_hours": {
+        "type": "int",
+        "description": "历史任务状态保存小时数。",
+        "default": 24
+      },
+      "send_start_message": {
+        "type": "bool",
+        "description": "后台 worker 开始处理任务时是否发送提示。",
+        "default": true
+      },
+      "send_finish_message": {
+        "type": "bool",
+        "description": "任务完成时是否发送完成 caption。",
+        "default": true
+      }
+    }
+  },
+  "llm_tool": {
+    "type": "object",
+    "description": "LLM Tool 设置。工具只提交后台任务，不等待最终图片。",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "description": "是否启用 LLM Tool。",
+        "default": true
+      },
+      "default_size": {
+        "type": "string",
+        "description": "LLM Tool 默认尺寸。",
+        "default": "1536x1024",
+        "options": ["1024x1024", "1536x1024", "1024x1536"]
+      },
+      "default_quality": {
+        "type": "string",
+        "description": "LLM Tool 默认质量。",
+        "default": "medium",
+        "options": ["low", "medium", "high", "auto"]
+      },
+      "require_explicit_image_intent": {
+        "type": "bool",
+        "description": "提示模型仅在用户明确要求生图/改图时调用工具。当前主要通过工具描述约束。",
+        "default": true
+      }
+    }
+  },
+  "edit": {
+    "type": "object",
+    "description": "改图设置。",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "description": "是否启用 /gptedit 与 gpt_image2_edit。",
+        "default": true
+      },
+      "max_reference_images": {
+        "type": "int",
+        "description": "最多读取的参考图数量。",
+        "default": 4
+      },
+      "max_reference_image_mb": {
+        "type": "int",
+        "description": "单张参考图最大 MB。",
+        "default": 20
+      }
+    }
+  }
+}
