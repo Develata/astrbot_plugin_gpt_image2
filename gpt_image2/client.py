@@ -11,7 +11,16 @@ from .errors import APIStatusError, compact_error_body
 
 
 class GPTImage2Client:
-    def __init__(self, session: Any, *, base_url: str, api_key: str, model: str, timeout_seconds: int, user_agent: str) -> None:
+    def __init__(
+        self,
+        session: Any,
+        *,
+        base_url: str,
+        api_key: str,
+        model: str,
+        timeout_seconds: int,
+        user_agent: str,
+    ) -> None:
         self.session = session
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -38,7 +47,9 @@ class GPTImage2Client:
             "background": background,
         }
         headers = self._json_headers()
-        async with self.session.post(url, json=payload, headers=headers, timeout=self.timeout) as resp:
+        async with self.session.post(
+            url, json=payload, headers=headers, timeout=self.timeout
+        ) as resp:
             return await self._parse_response(resp)
 
     async def edit(
@@ -63,12 +74,21 @@ class GPTImage2Client:
         try:
             for index, path in enumerate(image_paths):
                 p = Path(path)
-                content_type = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+                content_type = (
+                    mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+                )
                 fh = p.open("rb")
                 opened.append(fh)
                 # OpenAI-compatible image edit APIs commonly accept repeated image fields.
-                form.add_field("image", fh, filename=p.name or f"reference_{index}.png", content_type=content_type)
-            async with self.session.post(url, data=form, headers=self._auth_headers(), timeout=self.timeout) as resp:
+                form.add_field(
+                    "image",
+                    fh,
+                    filename=p.name or f"reference_{index}.png",
+                    content_type=content_type,
+                )
+            async with self.session.post(
+                url, data=form, headers=self._auth_headers(), timeout=self.timeout
+            ) as resp:
                 return await self._parse_response(resp)
         finally:
             for fh in opened:
@@ -97,7 +117,11 @@ class GPTImage2Client:
         try:
             return await resp.json(content_type=None)
         except Exception as exc:
-            raise APIStatusError(resp.status, f"JSON parse error: {exc}; body={compact_error_body(body)}", content_type) from exc
+            raise APIStatusError(
+                resp.status,
+                f"JSON parse error: {exc}; body={compact_error_body(body)}",
+                content_type,
+            ) from exc
 
 
 def extract_image_payload(response: dict[str, Any]) -> tuple[str, str]:

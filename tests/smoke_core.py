@@ -10,14 +10,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from gpt_image2.access import AccessController
-from gpt_image2.cache import OutputCache
-from gpt_image2.client import extract_image_payload, save_b64_image
-from gpt_image2.config import PluginConfig
-from gpt_image2.errors import APIStatusError, redact_secret
-from gpt_image2.fallback import FallbackImageClient
-from gpt_image2.jobs import JobManager
-from gpt_image2.models import JobOrigin, JobRequest, JobStatus
+from gpt_image2.access import AccessController  # noqa: E402
+from gpt_image2.cache import OutputCache  # noqa: E402
+from gpt_image2.client import extract_image_payload, save_b64_image  # noqa: E402
+from gpt_image2.config import PluginConfig  # noqa: E402
+from gpt_image2.errors import APIStatusError, redact_secret  # noqa: E402
+from gpt_image2.fallback import FallbackImageClient  # noqa: E402
+from gpt_image2.jobs import JobManager  # noqa: E402
+from gpt_image2.models import JobOrigin, JobRequest, JobStatus  # noqa: E402
 
 
 class FakeClient:
@@ -89,12 +89,17 @@ async def test_success_send_image_even_without_finish_caption() -> None:
     with tempfile.TemporaryDirectory() as td:
         cfg = PluginConfig.from_mapping(
             {
-                "api": {"base_url": "https://example.test/v1", "api_key": "sk-tes...9012"},
+                "api": {
+                    "base_url": "https://example.test/v1",
+                    "api_key": "sk-tes...9012",
+                },
                 "runtime": {"send_finish_message": False, "send_start_message": False},
             }
         )
         sender = FakeSender()
-        manager = JobManager(config=cfg, client=FakeClient(), sender=sender, data_dir=Path(td))
+        manager = JobManager(
+            config=cfg, client=FakeClient(), sender=sender, data_dir=Path(td)
+        )
         await manager.start()
         try:
             job = await manager.enqueue(
@@ -105,7 +110,9 @@ async def test_success_send_image_even_without_finish_caption() -> None:
                     quality="medium",
                     source="test",
                 ),
-                JobOrigin(session="telegram:chat", sender_id="u1", platform_name="telegram"),
+                JobOrigin(
+                    session="telegram:chat", sender_id="u1", platform_name="telegram"
+                ),
             )
             done = await wait_terminal(manager, job.job_id)
         finally:
@@ -120,39 +127,69 @@ async def test_fallback_route_notice_and_quiet_mode() -> None:
     with tempfile.TemporaryDirectory() as td:
         cfg = PluginConfig.from_mapping(
             {
-                "api": {"base_url": "https://example.test/v1", "api_key": "sk-tes...9012"},
+                "api": {
+                    "base_url": "https://example.test/v1",
+                    "api_key": "sk-tes...9012",
+                },
                 "runtime": {"send_start_message": False},
             }
         )
         sender = FakeSender()
-        manager = JobManager(config=cfg, client=RoutedClient(), sender=sender, data_dir=Path(td))
+        manager = JobManager(
+            config=cfg, client=RoutedClient(), sender=sender, data_dir=Path(td)
+        )
         await manager.start()
         try:
             job = await manager.enqueue(
-                JobRequest(operation="generation", prompt="black cat", size="1536x1024", quality="medium"),
-                JobOrigin(session="telegram:chat", sender_id="u1", platform_name="telegram"),
+                JobRequest(
+                    operation="generation",
+                    prompt="black cat",
+                    size="1536x1024",
+                    quality="medium",
+                ),
+                JobOrigin(
+                    session="telegram:chat", sender_id="u1", platform_name="telegram"
+                ),
             )
             done = await wait_terminal(manager, job.job_id)
         finally:
             await manager.stop()
         assert done.routed_endpoint == "fallback_1"
         assert done.routed_model == "fallback-model"
-        assert "fallback: 已路由到 fallback_1 / model: fallback-model" in sender.images[0][2]
+        assert (
+            "fallback: 已路由到 fallback_1 / model: fallback-model"
+            in sender.images[0][2]
+        )
 
     with tempfile.TemporaryDirectory() as td:
         quiet_cfg = PluginConfig.from_mapping(
             {
-                "api": {"base_url": "https://example.test/v1", "api_key": "sk-tes...9012"},
+                "api": {
+                    "base_url": "https://example.test/v1",
+                    "api_key": "sk-tes...9012",
+                },
                 "runtime": {"send_start_message": False, "quiet_mode": True},
             }
         )
         quiet_sender = FakeSender()
-        manager = JobManager(config=quiet_cfg, client=RoutedClient(), sender=quiet_sender, data_dir=Path(td))
+        manager = JobManager(
+            config=quiet_cfg,
+            client=RoutedClient(),
+            sender=quiet_sender,
+            data_dir=Path(td),
+        )
         await manager.start()
         try:
             job = await manager.enqueue(
-                JobRequest(operation="generation", prompt="black cat", size="1536x1024", quality="medium"),
-                JobOrigin(session="telegram:chat", sender_id="u1", platform_name="telegram"),
+                JobRequest(
+                    operation="generation",
+                    prompt="black cat",
+                    size="1536x1024",
+                    quality="medium",
+                ),
+                JobOrigin(
+                    session="telegram:chat", sender_id="u1", platform_name="telegram"
+                ),
             )
             await wait_terminal(manager, job.job_id)
         finally:
@@ -165,12 +202,17 @@ async def test_delivery_failure_stage_and_state() -> None:
     with tempfile.TemporaryDirectory() as td:
         cfg = PluginConfig.from_mapping(
             {
-                "api": {"base_url": "https://example.test/v1", "api_key": "sk-tes...9012"},
+                "api": {
+                    "base_url": "https://example.test/v1",
+                    "api_key": "sk-tes...9012",
+                },
                 "runtime": {"send_start_message": False},
             }
         )
         sender = FakeSender(fail_image=True)
-        manager = JobManager(config=cfg, client=FakeClient(), sender=sender, data_dir=Path(td))
+        manager = JobManager(
+            config=cfg, client=FakeClient(), sender=sender, data_dir=Path(td)
+        )
         await manager.start()
         try:
             job = await manager.enqueue(
@@ -181,7 +223,9 @@ async def test_delivery_failure_stage_and_state() -> None:
                     quality="medium",
                     source="test",
                 ),
-                JobOrigin(session="telegram:chat", sender_id="u1", platform_name="telegram"),
+                JobOrigin(
+                    session="telegram:chat", sender_id="u1", platform_name="telegram"
+                ),
             )
             done = await wait_terminal(manager, job.job_id)
         finally:
@@ -195,22 +239,49 @@ async def test_per_user_queue_limit_and_global_clamp() -> None:
     with tempfile.TemporaryDirectory() as td:
         cfg = PluginConfig.from_mapping(
             {
-                "api": {"base_url": "https://example.test/v1", "api_key": "sk-tes...9012"},
-                "runtime": {"global_max_concurrent": 99, "queue_max_size": 3, "per_user_queue_max_size": 1},
+                "api": {
+                    "base_url": "https://example.test/v1",
+                    "api_key": "sk-tes...9012",
+                },
+                "runtime": {
+                    "global_max_concurrent": 99,
+                    "queue_max_size": 3,
+                    "per_user_queue_max_size": 1,
+                },
             }
         )
         assert cfg.runtime.global_max_concurrent == 1
-        manager = JobManager(config=cfg, client=FakeClient(), sender=FakeSender(), data_dir=Path(td))
+        manager = JobManager(
+            config=cfg, client=FakeClient(), sender=FakeSender(), data_dir=Path(td)
+        )
         await manager.start()
         try:
             await manager.enqueue(
-                JobRequest(operation="generation", prompt="1", size="1536x1024", quality="medium", source="test"),
-                JobOrigin(session="telegram:chat", sender_id="u1", platform_name="telegram"),
+                JobRequest(
+                    operation="generation",
+                    prompt="1",
+                    size="1536x1024",
+                    quality="medium",
+                    source="test",
+                ),
+                JobOrigin(
+                    session="telegram:chat", sender_id="u1", platform_name="telegram"
+                ),
             )
             try:
                 await manager.enqueue(
-                    JobRequest(operation="generation", prompt="2", size="1536x1024", quality="medium", source="test"),
-                    JobOrigin(session="telegram:chat", sender_id="u1", platform_name="telegram"),
+                    JobRequest(
+                        operation="generation",
+                        prompt="2",
+                        size="1536x1024",
+                        quality="medium",
+                        source="test",
+                    ),
+                    JobOrigin(
+                        session="telegram:chat",
+                        sender_id="u1",
+                        platform_name="telegram",
+                    ),
                 )
             except RuntimeError as exc:
                 assert "当前用户图片任务过多" in str(exc)
@@ -251,8 +322,14 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
             }
         ).access
         ac = AccessController(config=access_cfg, state_path=root / "access.json")
-        assert ac.check(JobOrigin(session="s", sender_id="u-admin", group_id="g1", is_group_chat=True)).allowed
-        origin = JobOrigin(session="s", sender_id="u2", group_id="g1", is_group_chat=True)
+        assert ac.check(
+            JobOrigin(
+                session="s", sender_id="u-admin", group_id="g1", is_group_chat=True
+            )
+        ).allowed
+        origin = JobOrigin(
+            session="s", sender_id="u2", group_id="g1", is_group_chat=True
+        )
         decision = ac.check_and_reserve(origin)
         assert decision.allowed and decision.reserved
         assert not ac.check(origin).allowed
@@ -260,8 +337,14 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
         assert ac.check(origin).allowed
         assert ac.check_and_reserve(origin).allowed
         assert not ac.check(origin).allowed
-        assert ac.check(JobOrigin(session="s", sender_id="u2", group_id="g2", is_group_chat=True)).silent
-        assert ac.check(JobOrigin(session="private", sender_id="u3", group_id="", is_group_chat=False)).allowed
+        assert ac.check(
+            JobOrigin(session="s", sender_id="u2", group_id="g2", is_group_chat=True)
+        ).silent
+        assert ac.check(
+            JobOrigin(
+                session="private", sender_id="u3", group_id="", is_group_chat=False
+            )
+        ).allowed
 
         blacklist_cfg = PluginConfig.from_mapping(
             {
@@ -273,10 +356,36 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
                 }
             }
         ).access
-        blacklist = AccessController(config=blacklist_cfg, state_path=root / "blacklist_access.json")
-        assert blacklist.check(JobOrigin(session="private", sender_id="u-admin", group_id="", is_group_chat=False)).reason == "user_blacklisted"
-        assert blacklist.check_and_reserve(JobOrigin(session="private", sender_id="u-bad", group_id="", is_group_chat=False)).reason == "user_blacklisted"
-        assert blacklist.check(JobOrigin(session="private", sender_id="u-ok", group_id="", is_group_chat=False)).allowed
+        blacklist = AccessController(
+            config=blacklist_cfg, state_path=root / "blacklist_access.json"
+        )
+        assert (
+            blacklist.check(
+                JobOrigin(
+                    session="private",
+                    sender_id="u-admin",
+                    group_id="",
+                    is_group_chat=False,
+                )
+            ).reason
+            == "user_blacklisted"
+        )
+        assert (
+            blacklist.check_and_reserve(
+                JobOrigin(
+                    session="private",
+                    sender_id="u-bad",
+                    group_id="",
+                    is_group_chat=False,
+                )
+            ).reason
+            == "user_blacklisted"
+        )
+        assert blacklist.check(
+            JobOrigin(
+                session="private", sender_id="u-ok", group_id="", is_group_chat=False
+            )
+        ).allowed
 
         secondary = RecordingClient()
         client = FallbackImageClient(
@@ -285,7 +394,13 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
                 ("good", secondary),
             ]
         )
-        await client.generate(prompt="x", size="1024x1024", quality="low", output_format="png", background="auto")
+        await client.generate(
+            prompt="x",
+            size="1024x1024",
+            quality="low",
+            output_format="png",
+            background="auto",
+        )
         assert secondary.calls == 1
         timeout_secondary = RecordingClient(model="timeout-fallback-model")
         client = FallbackImageClient(
@@ -294,7 +409,13 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
                 ("should_run", timeout_secondary),
             ]
         )
-        response = await client.generate(prompt="x", size="1024x1024", quality="low", output_format="png", background="auto")
+        response = await client.generate(
+            prompt="x",
+            size="1024x1024",
+            quality="low",
+            output_format="png",
+            background="auto",
+        )
         assert timeout_secondary.calls == 1
         assert response["__gpt_image2_endpoint"] == "should_run"
         assert response["__gpt_image2_model"] == "timeout-fallback-model"
@@ -327,7 +448,10 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
         assert cfg.api.fallback_endpoints[0].base_url == "https://backup1.example/v1"
         assert cfg.api.fallback_endpoints[0].api_key == "sk-backup1"
         assert cfg.api.fallback_endpoints[0].model == "backup-image-model"
-        assert cfg.api.fallback_endpoints[1].base_url == "https://backup-template.example/v1"
+        assert (
+            cfg.api.fallback_endpoints[1].base_url
+            == "https://backup-template.example/v1"
+        )
         assert cfg.api.fallback_endpoints[1].model == "template-image-model"
 
         per_endpoint_model_cfg = PluginConfig.from_mapping(
@@ -344,7 +468,10 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
                 }
             }
         )
-        assert per_endpoint_model_cfg.api.fallback_endpoints[0].model == "other-image-model"
+        assert (
+            per_endpoint_model_cfg.api.fallback_endpoints[0].model
+            == "other-image-model"
+        )
 
         legacy_string_cfg = PluginConfig.from_mapping(
             {
@@ -358,7 +485,14 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
 
 def test_payload_helpers() -> None:
     kind, value = extract_image_payload(
-        {"data": [{"b64_json": "data:image/png;base64," + base64.b64encode(b"abc").decode()}]}
+        {
+            "data": [
+                {
+                    "b64_json": "data:image/png;base64,"
+                    + base64.b64encode(b"abc").decode()
+                }
+            ]
+        }
     )
     assert kind == "b64_json"
     p = Path(tempfile.gettempdir()) / "gpt_image2_payload_test.bin"
@@ -367,7 +501,9 @@ def test_payload_helpers() -> None:
         assert p.read_bytes() == b"abc"
     finally:
         p.unlink(missing_ok=True)
-    text = redact_secret("https://x.test/v1?api_key=SECRET&ok=1 Authorization: Bearer abcdefghijklmnop")
+    text = redact_secret(
+        "https://x.test/v1?api_key=SECRET&ok=1 Authorization: Bearer abcdefghijklmnop"
+    )
     assert "SECRET" not in text and "abcdefghijklmnop" not in text
 
 

@@ -37,7 +37,9 @@ class AccessController:
     def save(self) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.state_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self._state, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(self._state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         tmp.replace(self.state_path)
 
     def check_and_reserve(self, origin: JobOrigin) -> AccessDecision:
@@ -126,7 +128,9 @@ class AccessController:
 
     def _daily_used(self, sender_id: str) -> int:
         self._prune_old_days()
-        return int(self._state.setdefault("daily", {}).get(self._daily_key(sender_id), 0))
+        return int(
+            self._state.setdefault("daily", {}).get(self._daily_key(sender_id), 0)
+        )
 
     def _daily_key(self, sender_id: str) -> str:
         day = time.strftime("%Y-%m-%d", time.localtime())

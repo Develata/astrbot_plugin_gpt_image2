@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """Smoke-test AstrBot import modes without requiring a running AstrBot instance.
 
 AstrBot loads native plugins as packages under data/plugins. A top-level import
 of main.py is also useful for local developer checks. This script verifies both
 import modes with minimal AstrBot API stubs.
 """
+
+from __future__ import annotations
 
 import asyncio
 import importlib
@@ -59,7 +59,11 @@ def install_astrbot_stubs() -> None:
         def command(self, *args, **kwargs):
             def decorator(func):
                 existing = getattr(func, "__astrbot_stub_commands__", [])
-                setattr(func, "__astrbot_stub_commands__", [*existing, args[0] if args else None])
+                setattr(
+                    func,
+                    "__astrbot_stub_commands__",
+                    [*existing, args[0] if args else None],
+                )
                 return func
 
             return decorator
@@ -133,7 +137,9 @@ def clear_plugin_modules() -> None:
     for name in list(sys.modules):
         if name == "main" or name == "gpt_image2" or name.startswith("gpt_image2."):
             sys.modules.pop(name, None)
-        if name == "astrbot_plugin_gpt_image2" or name.startswith("astrbot_plugin_gpt_image2."):
+        if name == "astrbot_plugin_gpt_image2" or name.startswith(
+            "astrbot_plugin_gpt_image2."
+        ):
             sys.modules.pop(name, None)
 
 
@@ -142,8 +148,13 @@ def import_top_level_main() -> None:
     sys.path.insert(0, str(REPO))
     try:
         mod = importlib.import_module("main")
-        plugin = mod.GPTImage2Plugin(sys.modules["astrbot.api.star"].Context(), {"api": {"api_key": "sk-testsk-testsk-test"}})
-        opts = plugin._parse_prompt_and_options("--size 1024x1024 a mid-journey cat --quality high")
+        plugin = mod.GPTImage2Plugin(
+            sys.modules["astrbot.api.star"].Context(),
+            {"api": {"api_key": "sk-testsk-testsk-test"}},
+        )
+        opts = plugin._parse_prompt_and_options(
+            "--size 1024x1024 a mid-journey cat --quality high"
+        )
         assert opts["prompt"] == "a mid-journey cat"
         assert opts["size"] == "1024x1024"
         assert opts["quality"] == "high"
@@ -159,7 +170,10 @@ def import_top_level_main() -> None:
         }
         for command_name in expected_admin_commands:
             handler = getattr(plugin, command_name)
-            assert getattr(handler, "__astrbot_stub_permission_type__", None) == mod.filter.PermissionType.ADMIN
+            assert (
+                getattr(handler, "__astrbot_stub_permission_type__", None)
+                == mod.filter.PermissionType.ADMIN
+            )
         sp = sys.modules["astrbot.core"].sp
         sp.store.clear()
         plugin._ensure_default_llm_tool_permissions()
@@ -220,14 +234,22 @@ def import_top_level_main() -> None:
                             "base_url": "https://backup-template.example/v1",
                             "api_key": "sk-template",
                             "model": "gpt-image-2",
-                        }
+                        },
                     ],
                 }
             }
         )
-        mod.GPTImage2Plugin(sys.modules["astrbot.api.star"].Context(), legacy_list_config)
-        assert legacy_list_config["api"]["fallback_endpoints"][0]["__template_key"] == "fallback_endpoint"
-        assert legacy_list_config["api"]["fallback_endpoints"][1]["__template_key"] == "fallback_endpoint"
+        mod.GPTImage2Plugin(
+            sys.modules["astrbot.api.star"].Context(), legacy_list_config
+        )
+        assert (
+            legacy_list_config["api"]["fallback_endpoints"][0]["__template_key"]
+            == "fallback_endpoint"
+        )
+        assert (
+            legacy_list_config["api"]["fallback_endpoints"][1]["__template_key"]
+            == "fallback_endpoint"
+        )
         assert legacy_list_config.saved
     finally:
         try:
@@ -250,7 +272,10 @@ def test_silent_group_deny_stops_command_event() -> None:
         )
         plugin.manager = object()
         tmpdir = tempfile.TemporaryDirectory()
-        plugin.access = mod.AccessController(config=plugin.config.access, state_path=Path(tmpdir.name) / "access_state.json")
+        plugin.access = mod.AccessController(
+            config=plugin.config.access,
+            state_path=Path(tmpdir.name) / "access_state.json",
+        )
 
         class FakeEvent:
             def __init__(self):
@@ -314,8 +339,12 @@ def test_llm_tool_uses_usage_limits() -> None:
         )
 
         class NeverEnqueueManager:
-            async def enqueue(self, *args, **kwargs):  # pragma: no cover - must not be called.
-                raise AssertionError("LLM Tool bypassed usage limits and reached enqueue")
+            async def enqueue(
+                self, *args, **kwargs
+            ):  # pragma: no cover - must not be called.
+                raise AssertionError(
+                    "LLM Tool bypassed usage limits and reached enqueue"
+                )
 
         class FakeEvent:
             unified_msg_origin = "stub:FriendMessage:blocked-user"
@@ -334,7 +363,9 @@ def test_llm_tool_uses_usage_limits() -> None:
 
         plugin.manager = NeverEnqueueManager()
         with tempfile.TemporaryDirectory() as td:
-            plugin.access = mod.AccessController(config=plugin.config.access, state_path=Path(td) / "access_state.json")
+            plugin.access = mod.AccessController(
+                config=plugin.config.access, state_path=Path(td) / "access_state.json"
+            )
             result = asyncio.run(plugin.gpt_image2_generate(FakeEvent(), "a cat"))
         assert "用户黑名单" in result
     finally:
@@ -396,8 +427,13 @@ def import_package_main() -> None:
     sys.path.insert(0, str(PARENT))
     try:
         mod = importlib.import_module("astrbot_plugin_gpt_image2.main")
-        plugin = mod.GPTImage2Plugin(sys.modules["astrbot.api.star"].Context(), {"api": {"api_key": "sk-testsk-testsk-test"}})
-        opts = plugin._parse_prompt_and_options("a mid-journey cat --quality high --size 1024x1024")
+        plugin = mod.GPTImage2Plugin(
+            sys.modules["astrbot.api.star"].Context(),
+            {"api": {"api_key": "sk-testsk-testsk-test"}},
+        )
+        opts = plugin._parse_prompt_and_options(
+            "a mid-journey cat --quality high --size 1024x1024"
+        )
         assert opts["prompt"] == "a mid-journey cat"
         assert opts["size"] == "1024x1024"
         assert opts["quality"] == "high"

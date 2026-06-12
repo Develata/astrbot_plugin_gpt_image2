@@ -51,10 +51,4 @@ def compact_error_body(body: bytes | str, limit: int = 2000) -> str:
 
 def format_job_error(job_id: str, stage: str, error: BaseException) -> str:
     raw = compact_error_body(str(error), limit=2200)
-    return (
-        "💥 GPT Image 2 任务失败\n\n"
-        f"job_id: {job_id}\n"
-        f"stage: {stage}\n"
-        "error:\n"
-        f"{raw}"
-    )
+    return f"💥 GPT Image 2 任务失败\n\njob_id: {job_id}\nstage: {stage}\nerror:\n{raw}"

@@ -18,7 +18,9 @@ from .models import ImageJob, JobOrigin, JobRequest, JobStatus
 
 class MessageSender(Protocol):
     async def send_text(self, session: str, text: str) -> None: ...
-    async def send_image(self, session: str, path_or_url: str, caption: str | None = None) -> None: ...
+    async def send_image(
+        self, session: str, path_or_url: str, caption: str | None = None
+    ) -> None: ...
 
 
 class ImageClient(Protocol):
@@ -56,9 +58,13 @@ class JobManager:
         await self.load_state()
         self.cleanup_cache()
         self._stop_event.clear()
-        self._worker_task = asyncio.create_task(self._worker_loop(), name="gpt-image2-worker")
+        self._worker_task = asyncio.create_task(
+            self._worker_loop(), name="gpt-image2-worker"
+        )
         if self.config.runtime.cleanup_interval_minutes > 0:
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop(), name="gpt-image2-cache-cleanup")
+            self._cleanup_task = asyncio.create_task(
+                self._cleanup_loop(), name="gpt-image2-cache-cleanup"
+            )
 
     async def stop(self) -> None:
         self._stop_event.set()
@@ -81,7 +87,9 @@ class JobManager:
         async with self._lock:
             active_count = sum(1 for job in self.jobs.values() if not job.is_terminal)
             if active_count >= self.config.runtime.queue_max_size:
-                raise RuntimeError(f"图片任务队列已满：{active_count}/{self.config.runtime.queue_max_size}")
+                raise RuntimeError(
+                    f"图片任务队列已满：{active_count}/{self.config.runtime.queue_max_size}"
+                )
             pending_same_user = sum(
                 1
                 for job in self.jobs.values()
@@ -122,7 +130,9 @@ class JobManager:
         return self.jobs.get(job_id)
 
     def list_recent(self, limit: int = 10) -> list[ImageJob]:
-        return sorted(self.jobs.values(), key=lambda j: j.created_at, reverse=True)[:limit]
+        return sorted(self.jobs.values(), key=lambda j: j.created_at, reverse=True)[
+            :limit
+        ]
 
     async def load_state(self) -> None:
         if not self.state_path.exists():
@@ -150,7 +160,9 @@ class JobManager:
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(self.state_path)
 
-    def cleanup_cache(self, exclude_paths: set[str] | None = None) -> CacheCleanupResult:
+    def cleanup_cache(
+        self, exclude_paths: set[str] | None = None
+    ) -> CacheCleanupResult:
         active_paths = {
             job.output_path
             for job in self.jobs.values()
@@ -171,7 +183,9 @@ class JobManager:
         interval_seconds = max(60, self.config.runtime.cleanup_interval_minutes * 60)
         while not self._stop_event.is_set():
             try:
-                await asyncio.wait_for(self._stop_event.wait(), timeout=interval_seconds)
+                await asyncio.wait_for(
+                    self._stop_event.wait(), timeout=interval_seconds
+                )
             except asyncio.TimeoutError:
                 self.cleanup_cache()
                 continue
@@ -191,7 +205,9 @@ class JobManager:
 
     async def _next_job(self) -> ImageJob | None:
         async with self._lock:
-            running = sum(1 for job in self.jobs.values() if job.status == JobStatus.RUNNING)
+            running = sum(
+                1 for job in self.jobs.values() if job.status == JobStatus.RUNNING
+            )
             if running >= self.config.runtime.global_max_concurrent:
                 return None
             while self.queue:
@@ -207,9 +223,14 @@ class JobManager:
             return None
 
     async def _run_job(self, job: ImageJob) -> None:
-        if self.config.runtime.send_start_message and not self.config.runtime.quiet_mode:
+        if (
+            self.config.runtime.send_start_message
+            and not self.config.runtime.quiet_mode
+        ):
             try:
-                await self.sender.send_text(job.origin.session, self._start_message(job))
+                await self.sender.send_text(
+                    job.origin.session, self._start_message(job)
+                )
             except Exception:
                 # A transient notice-delivery failure must not kill the worker or
                 # prevent the actual image request from running.
@@ -238,7 +259,11 @@ class JobManager:
             stage = "parse_response"
             kind, value = extract_image_payload(response)
             if kind == "b64_json":
-                suffix = job.request.output_format if job.request.output_format in {"png", "jpeg", "jpg", "webp"} else "png"
+                suffix = (
+                    job.request.output_format
+                    if job.request.output_format in {"png", "jpeg", "jpg", "webp"}
+                    else "png"
+                )
                 output = self.output_dir / f"{job.job_id}.{suffix}"
                 save_b64_image(value, output)
                 job.output_path = str(output)
@@ -247,11 +272,18 @@ class JobManager:
             job.status = JobStatus.SUCCEEDED
             job.finished_at = time.time()
             await self.save_state()
-            if job.output_path and not str(job.output_path).startswith(("http://", "https://")):
+            if job.output_path and not str(job.output_path).startswith(
+                ("http://", "https://")
+            ):
                 self.cleanup_cache(exclude_paths={job.output_path})
             stage = "deliver_image"
             route_notice = self._route_notice(job)
-            caption = self._finish_caption(job) if self.config.runtime.send_finish_message and not self.config.runtime.quiet_mode else None
+            caption = (
+                self._finish_caption(job)
+                if self.config.runtime.send_finish_message
+                and not self.config.runtime.quiet_mode
+                else None
+            )
             if route_notice and caption:
                 caption = f"{caption}\n{route_notice}"
             elif route_notice:
@@ -259,14 +291,18 @@ class JobManager:
                     await self.sender.send_text(job.origin.session, route_notice)
                 except Exception:
                     pass
-            await self.sender.send_image(job.origin.session, job.output_path, caption=caption)
+            await self.sender.send_image(
+                job.origin.session, job.output_path, caption=caption
+            )
         except Exception as exc:
             job.status = JobStatus.FAILED
             job.finished_at = time.time()
             job.error = str(exc)
             await self.save_state()
             try:
-                await self.sender.send_text(job.origin.session, format_job_error(job.job_id, stage, exc))
+                await self.sender.send_text(
+                    job.origin.session, format_job_error(job.job_id, stage, exc)
+                )
             except Exception:
                 pass
 

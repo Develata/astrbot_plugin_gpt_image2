@@ -119,15 +119,24 @@ class PluginConfig:
             errors.append("runtime.per_user_queue_max_size 必须 >= 1")
         if self.runtime.queue_max_size < 1:
             errors.append("runtime.queue_max_size 必须 >= 1")
-        if self.runtime.cleanup_interval_minutes < 0 or self.runtime.cleanup_interval_minutes > 10080:
+        if (
+            self.runtime.cleanup_interval_minutes < 0
+            or self.runtime.cleanup_interval_minutes > 10080
+        ):
             errors.append("runtime.cleanup_interval_minutes 必须在 0..10080 之间")
         if self.runtime.max_cache_mb < 0 or self.runtime.max_cache_mb > 1048576:
             errors.append("runtime.max_cache_mb 必须在 0..1048576 之间")
-        if self.access.non_whitelist_daily_limit < 0 or self.access.non_whitelist_daily_limit > 10000:
+        if (
+            self.access.non_whitelist_daily_limit < 0
+            or self.access.non_whitelist_daily_limit > 10000
+        ):
             errors.append("access.non_whitelist_daily_limit 必须在 0..10000 之间")
         if self.edit.max_reference_images < 1:
             errors.append("edit.max_reference_images 必须 >= 1")
-        if self.edit.materialize_timeout_seconds < 1 or self.edit.materialize_timeout_seconds > 60:
+        if (
+            self.edit.materialize_timeout_seconds < 1
+            or self.edit.materialize_timeout_seconds > 60
+        ):
             errors.append("edit.materialize_timeout_seconds 必须在 1..60 之间")
         return errors
 
@@ -140,7 +149,11 @@ def _unwrap_config_values(raw: dict[str, Any]) -> dict[str, Any]:
     """
     out: dict[str, Any] = {}
     for key, value in raw.items():
-        if isinstance(value, dict) and set(value.keys()) >= {"value"} and "config_type" in value:
+        if (
+            isinstance(value, dict)
+            and set(value.keys()) >= {"value"}
+            and "config_type" in value
+        ):
             out[key] = value.get("value")
         elif isinstance(value, dict):
             out[key] = _unwrap_config_values(value)

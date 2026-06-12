@@ -55,7 +55,11 @@ class ImageJob:
 
     @property
     def is_terminal(self) -> bool:
-        return self.status in {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED}
+        return self.status in {
+            JobStatus.SUCCEEDED,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+        }
 
     def to_json(self) -> dict[str, Any]:
         data = asdict(self)

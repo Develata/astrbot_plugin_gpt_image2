@@ -16,7 +16,12 @@ if __package__:
     from .gpt_image2.client import GPTImage2Client
     from .gpt_image2.fallback import FallbackImageClient
     from .gpt_image2.config import PluginConfig
-    from .gpt_image2.image_io import collect_image_components, materialize_images, normalize_choice, strip_command_text
+    from .gpt_image2.image_io import (
+        collect_image_components,
+        materialize_images,
+        normalize_choice,
+        strip_command_text,
+    )
     from .gpt_image2.jobs import JobManager, describe_job
     from .gpt_image2.message_io import AstrBotMessageSender
     from .gpt_image2.models import JobOrigin, JobRequest
@@ -25,7 +30,12 @@ else:  # pragma: no cover - local smoke tests may import main.py as a top-level 
     from gpt_image2.client import GPTImage2Client
     from gpt_image2.fallback import FallbackImageClient
     from gpt_image2.config import PluginConfig
-    from gpt_image2.image_io import collect_image_components, materialize_images, normalize_choice, strip_command_text
+    from gpt_image2.image_io import (
+        collect_image_components,
+        materialize_images,
+        normalize_choice,
+        strip_command_text,
+    )
     from gpt_image2.jobs import JobManager, describe_job
     from gpt_image2.message_io import AstrBotMessageSender
     from gpt_image2.models import JobOrigin, JobRequest
@@ -60,7 +70,9 @@ def _drop_legacy_fallback_endpoints_config(raw_config: dict) -> None:
             try:
                 save_config()
             except Exception as exc:  # pragma: no cover - defensive runtime migration.
-                logger.warning("Failed to save migrated GPT Image 2 fallback config: %s", exc)
+                logger.warning(
+                    "Failed to save migrated GPT Image 2 fallback config: %s", exc
+                )
         return
     if isinstance(fallback_endpoints, list):
         changed = False
@@ -73,8 +85,12 @@ def _drop_legacy_fallback_endpoints_config(raw_config: dict) -> None:
             if callable(save_config):
                 try:
                     save_config()
-                except Exception as exc:  # pragma: no cover - defensive runtime migration.
-                    logger.warning("Failed to save migrated GPT Image 2 fallback config: %s", exc)
+                except (
+                    Exception
+                ) as exc:  # pragma: no cover - defensive runtime migration.
+                    logger.warning(
+                        "Failed to save migrated GPT Image 2 fallback config: %s", exc
+                    )
 
 
 @register(
@@ -122,7 +138,9 @@ class GPTImage2Plugin(Star):
         except Exception:  # pragma: no cover - optional outside AstrBot runtime.
             return
         try:
-            perms = astrbot_sp.get("tool_permissions", {}, scope="global", scope_id="global")
+            perms = astrbot_sp.get(
+                "tool_permissions", {}, scope="global", scope_id="global"
+            )
             if not isinstance(perms, dict):
                 perms = {}
             defaults = perms.get("_default", {})
@@ -135,7 +153,9 @@ class GPTImage2Plugin(Star):
                     changed = True
             if changed:
                 perms["_default"] = defaults
-                astrbot_sp.put("tool_permissions", perms, scope="global", scope_id="global")
+                astrbot_sp.put(
+                    "tool_permissions", perms, scope="global", scope_id="global"
+                )
         except Exception as exc:  # pragma: no cover - defensive runtime hardening.
             logger.warning("Failed to seed GPT Image 2 LLM tool permissions: %s", exc)
 
@@ -146,7 +166,9 @@ class GPTImage2Plugin(Star):
         self.session = aiohttp.ClientSession()
         client = self._build_image_client(self.session)
         data_dir = self._data_dir()
-        self.access = AccessController(config=self.config.access, state_path=data_dir / "access_state.json")
+        self.access = AccessController(
+            config=self.config.access, state_path=data_dir / "access_state.json"
+        )
         self.manager = JobManager(
             config=self.config,
             client=client,
@@ -175,7 +197,9 @@ class GPTImage2Plugin(Star):
         parsed = self._parse_prompt_and_options(prompt_text)
         prompt = parsed.pop("prompt")
         if not prompt:
-            yield event.plain_result("请提供 prompt。用法：/gptimg [--size 1536x1024] [--quality medium] <prompt>")
+            yield event.plain_result(
+                "请提供 prompt。用法：/gptimg [--size 1536x1024] [--quality medium] <prompt>"
+            )
             return
         origin = None
         decision = None
@@ -191,13 +215,17 @@ class GPTImage2Plugin(Star):
             refs = await self._try_materialize_event_images(event)
             operation = "edit" if refs else "generation"
             job = await self.manager.enqueue(
-                self._make_request(operation, prompt, parsed, reference_paths=refs, source="command"),
+                self._make_request(
+                    operation, prompt, parsed, reference_paths=refs, source="command"
+                ),
                 origin,
             )
         except asyncio.TimeoutError:
             if origin is not None and decision is not None:
                 self._release_access(origin, decision)
-            yield event.plain_result("提取参考图超时，未提交任务。请稍后重试，或使用更小/更少的图片。")
+            yield event.plain_result(
+                "提取参考图超时，未提交任务。请稍后重试，或使用更小/更少的图片。"
+            )
             return
         except Exception as exc:
             if origin is not None and decision is not None:
@@ -240,10 +268,14 @@ class GPTImage2Plugin(Star):
             refs = await self._materialize_event_images(event)
             if not refs:
                 self._release_access(origin, decision)
-                yield event.plain_result("未检测到参考图。请在当前消息附图，或引用一条包含图片的消息后使用 /gptedit。")
+                yield event.plain_result(
+                    "未检测到参考图。请在当前消息附图，或引用一条包含图片的消息后使用 /gptedit。"
+                )
                 return
             job = await self.manager.enqueue(
-                self._make_request("edit", prompt, parsed, reference_paths=refs, source="command"),
+                self._make_request(
+                    "edit", prompt, parsed, reference_paths=refs, source="command"
+                ),
                 origin,
             )
         except asyncio.TimeoutError:
@@ -280,7 +312,10 @@ class GPTImage2Plugin(Star):
         if not recent:
             yield event.plain_result("暂无 GPT Image 2 任务。")
             return
-        yield event.plain_result("最近 GPT Image 2 任务：\n\n" + "\n\n".join(describe_job(job) for job in recent))
+        yield event.plain_result(
+            "最近 GPT Image 2 任务：\n\n"
+            + "\n\n".join(describe_job(job) for job in recent)
+        )
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("gptimg_cancel")
@@ -358,8 +393,12 @@ class GPTImage2Plugin(Star):
         if not self.manager:
             return "GPT Image 2 插件尚未初始化完成。"
         opts = {
-            "size": normalize_choice(size, ALLOWED_SIZES, self.config.llm_tool.default_size),
-            "quality": normalize_choice(quality, ALLOWED_QUALITIES, self.config.llm_tool.default_quality),
+            "size": normalize_choice(
+                size, ALLOWED_SIZES, self.config.llm_tool.default_size
+            ),
+            "quality": normalize_choice(
+                quality, ALLOWED_QUALITIES, self.config.llm_tool.default_quality
+            ),
         }
         origin = None
         decision = None
@@ -367,12 +406,20 @@ class GPTImage2Plugin(Star):
             origin = self._origin_from_event(event)
             decision = self._reserve_access(origin)
             if not decision.allowed:
-                return "" if decision.silent else self._access_denied_message(decision.reason)
+                return (
+                    ""
+                    if decision.silent
+                    else self._access_denied_message(decision.reason)
+                )
             job = await self.manager.enqueue(
-                self._make_request("generation", prompt, opts, reference_paths=[], source="llm_tool"),
+                self._make_request(
+                    "generation", prompt, opts, reference_paths=[], source="llm_tool"
+                ),
                 origin,
             )
-            return self._tool_submit_message(job.job_id, "generation", job.queue_position)
+            return self._tool_submit_message(
+                job.job_id, "generation", job.queue_position
+            )
         except Exception as exc:
             if origin is not None and decision is not None:
                 self._release_access(origin, decision)
@@ -405,17 +452,27 @@ class GPTImage2Plugin(Star):
             origin = self._origin_from_event(event)
             decision = self._reserve_access(origin)
             if not decision.allowed:
-                return "" if decision.silent else self._access_denied_message(decision.reason)
+                return (
+                    ""
+                    if decision.silent
+                    else self._access_denied_message(decision.reason)
+                )
             refs = await self._materialize_event_images(event)
             if not refs:
                 self._release_access(origin, decision)
                 return "未检测到参考图；没有提交改图任务。请让用户附图或引用包含图片的消息。"
             opts = {
-                "size": normalize_choice(size, ALLOWED_SIZES, self.config.llm_tool.default_size),
-                "quality": normalize_choice(quality, ALLOWED_QUALITIES, self.config.llm_tool.default_quality),
+                "size": normalize_choice(
+                    size, ALLOWED_SIZES, self.config.llm_tool.default_size
+                ),
+                "quality": normalize_choice(
+                    quality, ALLOWED_QUALITIES, self.config.llm_tool.default_quality
+                ),
             }
             job = await self.manager.enqueue(
-                self._make_request("edit", prompt, opts, reference_paths=refs, source="llm_tool"),
+                self._make_request(
+                    "edit", prompt, opts, reference_paths=refs, source="llm_tool"
+                ),
                 origin,
             )
             return self._tool_submit_message(job.job_id, "edit", job.queue_position)
@@ -456,7 +513,9 @@ class GPTImage2Plugin(Star):
             return []
         refs = await self._materialize_event_images(event)
         if not refs:
-            raise ValueError("检测到图片消息，但未能解析为本地参考图；为避免误走文生图，已取消提交。")
+            raise ValueError(
+                "检测到图片消息，但未能解析为本地参考图；为避免误走文生图，已取消提交。"
+            )
         return refs
 
     def _reserve_access(self, origin: JobOrigin) -> AccessDecision:
@@ -474,7 +533,9 @@ class GPTImage2Plugin(Star):
         if reason.startswith("daily_limit_exceeded"):
             return "今日非白名单生图额度已用完。"
         if reason == "user_not_whitelisted":
-            return "你不在 GPT Image 2 用户白名单中，当前配置不允许非白名单用户生成图片。"
+            return (
+                "你不在 GPT Image 2 用户白名单中，当前配置不允许非白名单用户生成图片。"
+            )
         return "当前会话无权使用 GPT Image 2 生图功能。"
 
     def _data_dir(self) -> Path:
@@ -536,10 +597,24 @@ class GPTImage2Plugin(Star):
         return JobRequest(
             operation="edit" if operation == "edit" else "generation",
             prompt=self._apply_prompt_prefix(prompt.strip()),
-            size=normalize_choice(str(opts.get("size", "")), ALLOWED_SIZES, self.config.defaults.size),
-            quality=normalize_choice(str(opts.get("quality", "")), ALLOWED_QUALITIES, self.config.defaults.quality),
-            output_format=normalize_choice(str(opts.get("output_format", "")), ALLOWED_FORMATS, self.config.defaults.output_format),
-            background=normalize_choice(str(opts.get("background", "")), ALLOWED_BACKGROUNDS, self.config.defaults.background),
+            size=normalize_choice(
+                str(opts.get("size", "")), ALLOWED_SIZES, self.config.defaults.size
+            ),
+            quality=normalize_choice(
+                str(opts.get("quality", "")),
+                ALLOWED_QUALITIES,
+                self.config.defaults.quality,
+            ),
+            output_format=normalize_choice(
+                str(opts.get("output_format", "")),
+                ALLOWED_FORMATS,
+                self.config.defaults.output_format,
+            ),
+            background=normalize_choice(
+                str(opts.get("background", "")),
+                ALLOWED_BACKGROUNDS,
+                self.config.defaults.background,
+            ),
             reference_paths=reference_paths,
             source=source,
         )
@@ -632,7 +707,9 @@ def _split_option_chunk(chunk: str) -> tuple[str, str, str]:
         return "", "", ""
     key = tokens[0].strip().lower().replace("-", "_")
     value = str(tokens[1]).strip() if len(tokens) > 1 else "true"
-    remainder = " ".join(str(token) for token in tokens[2:]).strip() if len(tokens) > 2 else ""
+    remainder = (
+        " ".join(str(token) for token in tokens[2:]).strip() if len(tokens) > 2 else ""
+    )
     return key, value, remainder
 
 
@@ -660,9 +737,14 @@ def _is_group_event(event: Any, group_id: str) -> bool:
             return bool(value)
     for attr in ("message_type", "type", "conversation_type"):
         value = getattr(event, attr, None)
-        if value is not None and any(token in str(value).lower() for token in ("group", "guild", "channel")):
+        if value is not None and any(
+            token in str(value).lower() for token in ("group", "guild", "channel")
+        ):
             return True
-    return any(token in str(getattr(event, "unified_msg_origin", "")).lower() for token in ("group", "guild", "channel", "room"))
+    return any(
+        token in str(getattr(event, "unified_msg_origin", "")).lower()
+        for token in ("group", "guild", "channel", "room")
+    )
 
 
 def _safe_id(value: Any) -> str:

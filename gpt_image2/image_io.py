@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import Any
 
 
-def collect_image_components(event: Any, *, max_images: int, max_bytes: int) -> list[Any]:
+def collect_image_components(
+    event: Any, *, max_images: int, max_bytes: int
+) -> list[Any]:
     images: list[Any] = []
     for component in getattr(getattr(event, "message_obj", None), "message", []) or []:
         _collect_from_component(component, images, max_images)
@@ -14,9 +16,13 @@ def collect_image_components(event: Any, *, max_images: int, max_bytes: int) -> 
     return images[:max_images]
 
 
-async def materialize_images(event: Any, *, max_images: int, max_bytes: int) -> list[str]:
+async def materialize_images(
+    event: Any, *, max_images: int, max_bytes: int
+) -> list[str]:
     paths: list[str] = []
-    for component in collect_image_components(event, max_images=max_images, max_bytes=max_bytes):
+    for component in collect_image_components(
+        event, max_images=max_images, max_bytes=max_bytes
+    ):
         converter = getattr(component, "convert_to_file_path", None)
         if not callable(converter):
             continue

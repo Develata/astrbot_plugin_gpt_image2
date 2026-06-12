@@ -41,5 +41,7 @@ class FallbackImageClient:
                     response["__gpt_image2_model"] = str(model)
                 return response
             except Exception as exc:
-                errors.append(f"endpoint#{index}({name}): {compact_error_body(str(exc), limit=800)}")
+                errors.append(
+                    f"endpoint#{index}({name}): {compact_error_body(str(exc), limit=800)}"
+                )
         raise RuntimeError("所有 gpt-image-2 endpoint 均失败：\n" + "\n".join(errors))

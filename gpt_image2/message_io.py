@@ -13,7 +13,9 @@ class AstrBotMessageSender:
     async def send_text(self, session: str, text: str) -> None:
         await self.context.send_message(session, MessageChain([Comp.Plain(text)]))
 
-    async def send_image(self, session: str, path_or_url: str, caption: str | None = None) -> None:
+    async def send_image(
+        self, session: str, path_or_url: str, caption: str | None = None
+    ) -> None:
         chain = []
         if caption:
             chain.append(Comp.Plain(caption + "\n"))
