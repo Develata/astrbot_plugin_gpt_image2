@@ -4,6 +4,12 @@
 
 格式参考 Keep a Changelog，但按本插件的实际发布节奏保持轻量。
 
+## v0.2.2 - 2026-06-12
+
+### Changed
+
+- WebUI 与文档中将“访问控制”命名调整为“使用限制”，更贴近白名单与每日额度语义。
+
 ## v0.2.1 - 2026-06-12
 
 ### Fixed
@@ -18,7 +24,7 @@
 - `/gptimg` 自动路由：无参考图时文生图，有当前/引用图片时改图。
 - `/gptedit` 兼容保留，用于强制改图。
 - 图片输出缓存治理：启动清理、周期清理、TTL 清理与缓存体积上限。
-- 访问控制：用户白名单、群组白名单、非白名单每日额度。
+- 使用限制：用户白名单、群组白名单、非白名单每日额度。
 - Prompt 前缀配置。
 - `runtime.quiet_mode` 静默生图模式。
 - 备用 API fallback 链路。
@@ -31,7 +37,7 @@
 - 每个 Fallback API 只需填写 `Fallback API Base URL` 与 `Fallback API Key`。
 - 备用 API 沿用主配置的 `api.model`，当前固定为 `gpt-image-2`。
 - 精简 `_conf_schema.json` 中所有配置项描述；详细说明移至 README。
-- 命令入口与 LLM Tool 入口共享访问控制、额度、队列和 prompt prefix 策略。
+- 命令入口与 LLM Tool 入口共享使用限制、额度、队列和 prompt prefix 策略。
 - 后台任务成功时始终发送最终图片；`send_finish_message=false` 仅关闭完成 caption。
 - 全局上游并发继续强制钳制为 1，避免 gpt-image-2 并发触发 429。
 

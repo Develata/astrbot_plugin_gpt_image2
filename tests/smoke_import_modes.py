@@ -216,6 +216,50 @@ def test_silent_group_deny_stops_command_event() -> None:
             pass
 
 
+def test_llm_tool_uses_usage_limits() -> None:
+    clear_plugin_modules()
+    sys.path.insert(0, str(REPO))
+    try:
+        mod = importlib.import_module("main")
+        plugin = mod.GPTImage2Plugin(
+            sys.modules["astrbot.api.star"].Context(),
+            {
+                "api": {"api_key": "sk-tes...test"},
+                "access": {"enabled": True, "user_whitelist": "allowed-user", "non_whitelist_daily_limit": 0},
+            },
+        )
+
+        class NeverEnqueueManager:
+            async def enqueue(self, *args, **kwargs):  # pragma: no cover - must not be called.
+                raise AssertionError("LLM Tool bypassed usage limits and reached enqueue")
+
+        class FakeEvent:
+            unified_msg_origin = "stub:FriendMessage:blocked-user"
+
+            def get_platform_name(self):
+                return "stub"
+
+            def get_sender_id(self):
+                return "blocked-user"
+
+            def get_sender_name(self):
+                return "Blocked"
+
+            def get_group_id(self):
+                return ""
+
+        plugin.manager = NeverEnqueueManager()
+        with tempfile.TemporaryDirectory() as td:
+            plugin.access = mod.AccessController(config=plugin.config.access, state_path=Path(td) / "access_state.json")
+            result = asyncio.run(plugin.gpt_image2_generate(FakeEvent(), "a cat"))
+        assert "不在 GPT Image 2 用户白名单" in result
+    finally:
+        try:
+            sys.path.remove(str(REPO))
+        except ValueError:
+            pass
+
+
 def import_package_main() -> None:
     clear_plugin_modules()
     sys.path.insert(0, str(PARENT))
@@ -237,6 +281,7 @@ def main() -> None:
     install_astrbot_stubs()
     import_top_level_main()
     test_silent_group_deny_stops_command_event()
+    test_llm_tool_uses_usage_limits()
     import_package_main()
     print("import mode smoke passed")
 

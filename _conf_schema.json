@@ -241,11 +241,11 @@
   },
   "access": {
     "type": "object",
-    "description": "访问控制",
+    "description": "使用限制",
     "items": {
       "enabled": {
         "type": "bool",
-        "description": "启用访问控制",
+        "description": "启用使用限制",
         "default": false
       },
       "user_whitelist": {
