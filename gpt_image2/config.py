@@ -17,7 +17,7 @@ class APIConfig:
     api_key: str = ""
     model: str = "gpt-image-2"
     timeout_seconds: int = 900
-    user_agent: str = "AstrBot-GPT-Image2/0.1.0"
+    user_agent: str = "AstrBot-GPT-Image2/0.2.1"
     fallback_enabled: bool = False
     fallback_endpoints: list[APIEndpointConfig] = field(default_factory=list)
 
@@ -159,7 +159,6 @@ def _merge_api_config(value: Any) -> APIConfig:
                     continue
                 data = dict(item)
                 data.pop("__template_key", None)
-                data["model"] = cfg.model
                 endpoint = _merge_dataclass(APIEndpointConfig, data)
                 if endpoint.base_url and endpoint.api_key:
                     endpoints.append(endpoint)

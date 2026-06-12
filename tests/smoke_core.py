@@ -244,6 +244,7 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
                             "__template_key": "fallback_endpoint",
                             "base_url": "https://backup1.example/v1",
                             "api_key": "sk-backup1",
+                            "model": "backup-image-model",
                         },
                         {"base_url": "", "api_key": "sk-empty"},
                     ],
@@ -253,7 +254,7 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
         assert len(cfg.api.fallback_endpoints) == 1
         assert cfg.api.fallback_endpoints[0].base_url == "https://backup1.example/v1"
         assert cfg.api.fallback_endpoints[0].api_key == "sk-backup1"
-        assert cfg.api.fallback_endpoints[0].model == "gpt-image-2"
+        assert cfg.api.fallback_endpoints[0].model == "backup-image-model"
 
         per_endpoint_model_cfg = PluginConfig.from_mapping(
             {
@@ -269,7 +270,7 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
                 }
             }
         )
-        assert per_endpoint_model_cfg.api.fallback_endpoints[0].model == "gpt-image-2"
+        assert per_endpoint_model_cfg.api.fallback_endpoints[0].model == "other-image-model"
 
         legacy_string_cfg = PluginConfig.from_mapping(
             {

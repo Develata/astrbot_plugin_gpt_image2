@@ -64,6 +64,7 @@ api.fallback_endpoints:
   - __template_key: fallback_endpoint  # WebUI 自动生成；手写配置时保留
     base_url: https://backup.example.com/v1
     api_key: sk-...
+    model: gpt-image-2
 
 runtime.global_max_concurrent: 1
 runtime.queue_max_size: 5
@@ -86,14 +87,15 @@ llm_tool.enabled: true
 
 ## Fallback endpoint
 
-`api.fallback_endpoints` 在 WebUI 中使用“添加 Fallback API”逐条配置；每条只需要填写：
+`api.fallback_endpoints` 在 WebUI 中使用“添加 Fallback API”逐条配置；每条需要填写：
 
 ```text
 Fallback API Base URL: https://backup.example.com/v1
 Fallback API Key: sk-...
+Fallback Model: gpt-image-2
 ```
 
-所有备用 API 都沿用主配置的 `api.model`，当前固定为 `gpt-image-2`。
+每个备用 API 使用自己填写的 `Fallback Model`。若留空，运行时默认使用 `gpt-image-2`。
 
 保守策略：
 

@@ -4,6 +4,13 @@
 
 格式参考 Keep a Changelog，但按本插件的实际发布节奏保持轻量。
 
+## v0.2.1 - 2026-06-12
+
+### Fixed
+
+- Fallback API 配置项补充独立模型名字段；每个 fallback endpoint 现在使用自己填写的 `model`。
+- 同步插件注册版本号与 User-Agent 到 v0.2.1。
+
 ## v0.2.0 - 2026-06-12
 
 ### Added

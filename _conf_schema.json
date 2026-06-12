@@ -49,6 +49,11 @@
                 "description": "Fallback API Key",
                 "default": "",
                 "token": true
+              },
+              "model": {
+                "type": "string",
+                "description": "Fallback Model",
+                "default": "gpt-image-2"
               }
             }
           }

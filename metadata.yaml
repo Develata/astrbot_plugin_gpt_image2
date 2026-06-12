@@ -2,7 +2,7 @@ name: astrbot_plugin_gpt_image2
 desc: 面向 gpt-image-2 的稳定生图/改图插件，支持命令与 LLM Tool，内置后台任务队列与并发控制
 short_desc: 稳定的 gpt-image-2 生图/改图插件，支持后台队列与 LLM Tool
 display_name: GPT Image 2 Stable
-version: v0.2.0
+version: v0.2.1
 author: Develata
 repo: "https://github.com/Develata/astrbot_plugin_gpt_image2"
 astrbot_version: ">=4.25.5,<5"
