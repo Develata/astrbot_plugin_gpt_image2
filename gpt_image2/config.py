@@ -153,18 +153,14 @@ def _merge_api_config(value: Any) -> APIConfig:
     endpoints: list[APIEndpointConfig] = []
     if isinstance(value, dict):
         raw_endpoints = value.get("fallback_endpoints") or []
-        if isinstance(raw_endpoints, str):
-            try:
-                import json
-
-                raw_endpoints = json.loads(raw_endpoints)
-            except Exception:
-                raw_endpoints = []
         if isinstance(raw_endpoints, list):
             for item in raw_endpoints:
                 if not isinstance(item, dict):
                     continue
-                endpoint = _merge_dataclass(APIEndpointConfig, item)
+                data = dict(item)
+                data.pop("__template_key", None)
+                data["model"] = cfg.model
+                endpoint = _merge_dataclass(APIEndpointConfig, data)
                 if endpoint.base_url and endpoint.api_key:
                     endpoints.append(endpoint)
     cfg.fallback_endpoints = endpoints

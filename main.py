@@ -42,6 +42,26 @@ ALLOWED_FORMATS = {"png", "jpeg", "webp"}
 ALLOWED_BACKGROUNDS = {"auto", "transparent", "opaque"}
 
 
+def _drop_legacy_fallback_endpoints_config(raw_config: dict) -> None:
+    """Reset unreleased legacy JSON fallback config to the new template-list shape.
+
+    AstrBot preserves existing scalar config values when a schema key changes
+    type. Without this, an old string value for api.fallback_endpoints can be
+    passed back into the WebUI field that now expects a list.
+    """
+    api_config = raw_config.get("api") if isinstance(raw_config, dict) else None
+    if not isinstance(api_config, dict):
+        return
+    if isinstance(api_config.get("fallback_endpoints"), str):
+        api_config["fallback_endpoints"] = []
+        save_config = getattr(raw_config, "save_config", None)
+        if callable(save_config):
+            try:
+                save_config()
+            except Exception as exc:  # pragma: no cover - defensive runtime migration.
+                logger.warning("Failed to save migrated GPT Image 2 fallback config: %s", exc)
+
+
 @register(
     PLUGIN_NAME,
     "Develata",
@@ -69,6 +89,7 @@ class GPTImage2Plugin(Star):
     def __init__(self, context: Context, config: dict | None = None) -> None:
         super().__init__(context)
         self.raw_config = config or {}
+        _drop_legacy_fallback_endpoints_config(self.raw_config)
         self.config = PluginConfig.from_mapping(self.raw_config)
         self.session: aiohttp.ClientSession | None = None
         self.manager: JobManager | None = None

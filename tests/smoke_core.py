@@ -233,6 +233,53 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
             raise AssertionError("expected conservative no-fallback failure")
         assert timeout_secondary.calls == 0
 
+        cfg = PluginConfig.from_mapping(
+            {
+                "api": {
+                    "base_url": "https://primary.example/v1",
+                    "api_key": "sk-primary",
+                    "model": "gpt-image-2",
+                    "fallback_endpoints": [
+                        {
+                            "__template_key": "fallback_endpoint",
+                            "base_url": "https://backup1.example/v1",
+                            "api_key": "sk-backup1",
+                        },
+                        {"base_url": "", "api_key": "sk-empty"},
+                    ],
+                }
+            }
+        )
+        assert len(cfg.api.fallback_endpoints) == 1
+        assert cfg.api.fallback_endpoints[0].base_url == "https://backup1.example/v1"
+        assert cfg.api.fallback_endpoints[0].api_key == "sk-backup1"
+        assert cfg.api.fallback_endpoints[0].model == "gpt-image-2"
+
+        per_endpoint_model_cfg = PluginConfig.from_mapping(
+            {
+                "api": {
+                    "model": "gpt-image-2",
+                    "fallback_endpoints": [
+                        {
+                            "base_url": "https://backup2.example/v1",
+                            "api_key": "sk-backup2",
+                            "model": "other-image-model",
+                        }
+                    ],
+                }
+            }
+        )
+        assert per_endpoint_model_cfg.api.fallback_endpoints[0].model == "gpt-image-2"
+
+        legacy_string_cfg = PluginConfig.from_mapping(
+            {
+                "api": {
+                    "fallback_endpoints": '[{"base_url":"https://legacy.example/v1","api_key":"sk-legacy"}]'
+                }
+            }
+        )
+        assert legacy_string_cfg.api.fallback_endpoints == []
+
 
 def test_payload_helpers() -> None:
     kind, value = extract_image_payload(

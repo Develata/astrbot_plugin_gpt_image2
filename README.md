@@ -60,14 +60,17 @@ api.api_key: sk-...
 api.model: gpt-image-2
 api.timeout_seconds: 900
 api.fallback_enabled: false
-api.fallback_endpoints: []
+api.fallback_endpoints:
+  - __template_key: fallback_endpoint  # WebUI 自动生成；手写配置时保留
+    base_url: https://backup.example.com/v1
+    api_key: sk-...
 
-runtime.global_max_concurrent: 1    # v0.1/v0.2 会强制钳制为 1
+runtime.global_max_concurrent: 1
 runtime.queue_max_size: 5
 runtime.per_user_queue_max_size: 5
-runtime.cleanup_interval_minutes: 360    # 0=不做启动后的周期清理
-runtime.max_cache_mb: 1024               # 0=不按大小清理
-runtime.quiet_mode: false                # true=成功时只发送最终图片，不发提交/开始/完成固定文字
+runtime.cleanup_interval_minutes: 360
+runtime.max_cache_mb: 1024
+runtime.quiet_mode: false
 
 prompt.prefix: ""
 
@@ -83,17 +86,14 @@ llm_tool.enabled: true
 
 ## Fallback endpoint
 
-`api.fallback_endpoints` 是 JSON 数组字符串，每个 endpoint 单独配置 URL/key/model：
+`api.fallback_endpoints` 在 WebUI 中使用“添加 Fallback API”逐条配置；每条只需要填写：
 
-```json
-[
-  {
-    "base_url": "https://backup.example.com/v1",
-    "api_key": "sk-...",
-    "model": "gpt-image-2"
-  }
-]
+```text
+Fallback API Base URL: https://backup.example.com/v1
+Fallback API Key: sk-...
 ```
+
+所有备用 API 都沿用主配置的 `api.model`，当前固定为 `gpt-image-2`。
 
 保守策略：
 

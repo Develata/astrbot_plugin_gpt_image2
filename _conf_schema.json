@@ -1,48 +1,68 @@
 {
   "api": {
     "type": "object",
-    "description": "OpenAI-compatible Images API 设置。",
+    "description": "Images API",
     "items": {
       "base_url": {
         "type": "string",
-        "description": "API Base URL，必须包含 /v1。",
+        "description": "API Base URL",
         "default": "https://api.openai.com/v1"
       },
       "api_key": {
         "type": "string",
-        "description": "API Key。请使用只给图像通道的独立 key。",
+        "description": "API Key",
         "default": "",
         "token": true
       },
       "model": {
         "type": "string",
-        "description": "模型名。v0.1 仅支持 gpt-image-2。",
+        "description": "模型名",
         "default": "gpt-image-2"
       },
       "timeout_seconds": {
         "type": "int",
-        "description": "单次上游请求超时秒数。高质量大图建议 600-900。",
+        "description": "请求超时秒数",
         "default": 900
       },
       "fallback_enabled": {
         "type": "bool",
-        "description": "是否启用备用 gpt-image-2 endpoint。只在主 endpoint 失败后尝试备用 endpoint；不会重试同一 endpoint。",
+        "description": "启用备用 API",
         "default": false
       },
       "fallback_endpoints": {
-        "type": "string",
-        "description": "备用 endpoint JSON 数组；每项包含 base_url/api_key/model。示例：[{\"base_url\":\"https://x/v1\",\"api_key\":\"sk-...\",\"model\":\"gpt-image-2\"}]",
-        "default": "[]"
+        "type": "template_list",
+        "description": "备用 API 列表",
+        "default": [],
+        "templates": {
+          "fallback_endpoint": {
+            "name": "Fallback API",
+            "display_item": "base_url",
+            "hide_hint_in_list": true,
+            "items": {
+              "base_url": {
+                "type": "string",
+                "description": "Fallback API Base URL",
+                "default": ""
+              },
+              "api_key": {
+                "type": "string",
+                "description": "Fallback API Key",
+                "default": "",
+                "token": true
+              }
+            }
+          }
+        }
       }
     }
   },
   "defaults": {
     "type": "object",
-    "description": "默认图像参数。",
+    "description": "默认图像参数",
     "items": {
       "size": {
         "type": "string",
-        "description": "默认尺寸。",
+        "description": "默认尺寸",
         "default": "1536x1024",
         "options": [
           "1024x1024",
@@ -52,7 +72,7 @@
       },
       "quality": {
         "type": "string",
-        "description": "默认质量。",
+        "description": "默认质量",
         "default": "medium",
         "options": [
           "low",
@@ -63,7 +83,7 @@
       },
       "output_format": {
         "type": "string",
-        "description": "默认输出格式。",
+        "description": "输出格式",
         "default": "png",
         "options": [
           "png",
@@ -73,7 +93,7 @@
       },
       "background": {
         "type": "string",
-        "description": "默认背景。",
+        "description": "背景模式",
         "default": "auto",
         "options": [
           "auto",
@@ -85,71 +105,71 @@
   },
   "runtime": {
     "type": "object",
-    "description": "后台任务队列设置。",
+    "description": "后台队列",
     "items": {
       "global_max_concurrent": {
         "type": "int",
-        "description": "全局上游并发。v0.1 固定为 1，配置值会被强制钳制为 1，以避免 gpt-image-2 429。",
+        "description": "全局上游并发",
         "default": 1
       },
       "queue_max_size": {
         "type": "int",
-        "description": "最大未完成任务数。",
+        "description": "最大未完成任务数",
         "default": 5
       },
       "job_ttl_hours": {
         "type": "int",
-        "description": "历史任务状态保存小时数。",
+        "description": "任务保存小时数",
         "default": 24
       },
       "send_start_message": {
         "type": "bool",
-        "description": "后台 worker 开始处理任务时是否发送提示。",
+        "description": "发送开始提示",
         "default": true
       },
       "send_finish_message": {
         "type": "bool",
-        "description": "任务完成时是否发送完成 caption。",
+        "description": "发送完成 caption",
         "default": true
       },
       "per_user_queue_max_size": {
         "type": "int",
-        "description": "单用户最多未完成任务数（queued + running）。",
+        "description": "单用户未完成任务上限",
         "default": 5
       },
       "cleanup_interval_minutes": {
         "type": "int",
-        "description": "输出图片缓存周期清理间隔分钟；0 表示禁用周期清理。允许范围 0..10080。启动时仍会做一次清理。",
+        "description": "缓存清理间隔分钟",
         "default": 360,
         "min": 0,
         "max": 10080
       },
       "max_cache_mb": {
         "type": "int",
-        "description": "输出图片缓存体积上限 MB；0 表示不按体积清理。允许范围 0..1048576。超过上限时按最旧文件优先清理。",
+        "description": "缓存体积上限 MB",
         "default": 1024,
         "min": 0,
         "max": 1048576
       },
       "quiet_mode": {
         "type": "bool",
-        "description": "静默生图模式。启用后，命令提交/开始处理/完成 caption 等固定系统文字不发送，成功时只直接发送最终图片；失败错误仍会发送。",
+        "description": "静默生图模式",
         "default": false
       }
     }
   },
   "llm_tool": {
     "type": "object",
-    "description": "LLM Tool 设置。工具只提交后台任务，不等待最终图片。",
+    "description": "LLM Tool",
     "items": {
       "enabled": {
         "type": "bool",
-        "description": "是否启用 LLM Tool。",
+        "description": "启用 LLM Tool",
         "default": true
       },
       "default_size": {
         "type": "string",
-        "description": "LLM Tool 默认尺寸。",
+        "description": "默认尺寸",
         "default": "1536x1024",
         "options": [
           "1024x1024",
@@ -159,7 +179,7 @@
       },
       "default_quality": {
         "type": "string",
-        "description": "LLM Tool 默认质量。",
+        "description": "默认质量",
         "default": "medium",
         "options": [
           "low",
@@ -170,33 +190,33 @@
       },
       "require_explicit_image_intent": {
         "type": "bool",
-        "description": "提示模型仅在用户明确要求生图/改图时调用工具。当前主要通过工具描述约束。",
+        "description": "要求明确生图意图",
         "default": true
       }
     }
   },
   "edit": {
     "type": "object",
-    "description": "改图设置。",
+    "description": "改图设置",
     "items": {
       "enabled": {
         "type": "bool",
-        "description": "是否启用 /gptedit 与 gpt_image2_edit。",
+        "description": "启用改图",
         "default": true
       },
       "max_reference_images": {
         "type": "int",
-        "description": "最多读取的参考图数量。",
+        "description": "最多参考图数量",
         "default": 4
       },
       "max_reference_image_mb": {
         "type": "int",
-        "description": "单张参考图最大 MB。",
+        "description": "单张参考图最大 MB",
         "default": 20
       },
       "materialize_timeout_seconds": {
         "type": "int",
-        "description": "从当前/引用消息提取参考图的最大等待秒数。LLM Tool 会用它避免阻塞太久。",
+        "description": "参考图提取超时秒数",
         "default": 10,
         "min": 1,
         "max": 60
@@ -205,37 +225,37 @@
   },
   "prompt": {
     "type": "object",
-    "description": "Prompt 追加设置。",
+    "description": "Prompt 设置",
     "items": {
       "prefix": {
         "type": "text",
-        "description": "固定追加到用户 prompt 最前面的文本；留空则不追加。",
+        "description": "Prompt 前缀",
         "default": ""
       }
     }
   },
   "access": {
     "type": "object",
-    "description": "访问控制与非白名单每日额度。白名单为空表示该维度不限制。",
+    "description": "访问控制",
     "items": {
       "enabled": {
         "type": "bool",
-        "description": "是否启用访问控制。关闭时不检查用户/群组白名单和每日额度。",
+        "description": "启用访问控制",
         "default": false
       },
       "user_whitelist": {
         "type": "text",
-        "description": "用户 ID 白名单，逗号或换行分隔；为空表示不按用户白名单限制。",
+        "description": "用户 ID 白名单",
         "default": ""
       },
       "group_whitelist": {
         "type": "text",
-        "description": "群组 ID 白名单，逗号或换行分隔；为空表示不按群组白名单限制。非白名单群组会静默忽略。",
+        "description": "群组 ID 白名单",
         "default": ""
       },
       "non_whitelist_daily_limit": {
         "type": "int",
-        "description": "非用户白名单用户每日可提交图片任务数；0 表示禁止非白名单用户。允许范围 0..10000。",
+        "description": "非白名单每日额度",
         "default": 0,
         "min": 0,
         "max": 10000

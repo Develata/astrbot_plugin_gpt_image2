@@ -135,6 +135,21 @@ def import_top_level_main() -> None:
         )
         assert quiet_plugin._submit_message("job", "generation", 1) == ""
         assert "queued:job" in quiet_plugin._tool_submit_message("job", "generation", 1)
+
+        class MutableConfig(dict):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.saved = False
+
+            def save_config(self):
+                self.saved = True
+
+        legacy_config = MutableConfig(
+            {"api": {"api_key": "sk-tes...test", "fallback_endpoints": "[]"}}
+        )
+        mod.GPTImage2Plugin(sys.modules["astrbot.api.star"].Context(), legacy_config)
+        assert legacy_config["api"]["fallback_endpoints"] == []
+        assert legacy_config.saved
     finally:
         try:
             sys.path.remove(str(REPO))
