@@ -12,7 +12,7 @@ sys.path.insert(0, str(REPO))
 
 from gpt_image2.access import AccessController  # noqa: E402
 from gpt_image2.cache import OutputCache  # noqa: E402
-from gpt_image2.client import extract_image_payload, save_b64_image  # noqa: E402
+from gpt_image2.client import GPTImage2Client, extract_image_payload, save_b64_image  # noqa: E402
 from gpt_image2.config import PluginConfig  # noqa: E402
 from gpt_image2.errors import APIStatusError, redact_secret  # noqa: E402
 from gpt_image2.fallback import FallbackImageClient  # noqa: E402
@@ -73,6 +73,34 @@ class FakeSender:
         self.images.append((session, path_or_url, caption))
         if self.fail_image:
             raise RuntimeError("delivery failed")
+
+
+class FakeHTTPResponse:
+    status = 200
+    headers = {"Content-Type": "application/json"}
+
+    async def read(self):
+        return b'{"data":[{"b64_json":"cG5n"}]}'
+
+    async def json(self, content_type=None):
+        return {"data": [{"b64_json": "cG5n"}]}
+
+
+class FakePostContext:
+    async def __aenter__(self):
+        return FakeHTTPResponse()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class CaptureSession:
+    def __init__(self) -> None:
+        self.posts = []
+
+    def post(self, url, **kwargs):
+        self.posts.append((url, kwargs))
+        return FakePostContext()
 
 
 async def wait_terminal(manager: JobManager, job_id: str, timeout: float = 3):
@@ -507,8 +535,40 @@ def test_payload_helpers() -> None:
     assert "SECRET" not in text and "abcdefghijklmnop" not in text
 
 
+async def test_edit_uses_openai_array_image_field() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        paths = []
+        for name in ("a.png", "b.png"):
+            path = Path(td) / name
+            path.write_bytes(b"png")
+            paths.append(str(path))
+        session = CaptureSession()
+        client = GPTImage2Client(
+            session,
+            base_url="https://example.test/v1",
+            api_key="sk-test",
+            model="gpt-image-2",
+            timeout_seconds=60,
+            user_agent="test-agent",
+        )
+        await client.edit(
+            prompt="combine these references",
+            image_paths=paths,
+            size="1536x1024",
+            quality="medium",
+            output_format="png",
+            background="auto",
+        )
+        url, kwargs = session.posts[0]
+        assert url == "https://example.test/v1/images/edits"
+        names = [field[0]["name"] for field in kwargs["data"]._fields]
+        assert names.count("image[]") == 2
+        assert "image" not in names
+
+
 async def main() -> None:
     test_payload_helpers()
+    await test_edit_uses_openai_array_image_field()
     await test_success_send_image_even_without_finish_caption()
     await test_fallback_route_notice_and_quiet_mode()
     await test_delivery_failure_stage_and_state()

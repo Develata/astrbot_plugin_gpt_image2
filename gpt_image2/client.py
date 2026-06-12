@@ -79,9 +79,12 @@ class GPTImage2Client:
                 )
                 fh = p.open("rb")
                 opened.append(fh)
-                # OpenAI-compatible image edit APIs commonly accept repeated image fields.
+                # OpenAI's GPT image edit examples use `image[]` for one or more
+                # reference images. Some compatible gateways tolerate `image` for
+                # a single file but fail or misroute when repeated `image` fields
+                # are sent, so keep the array field name even for one image.
                 form.add_field(
-                    "image",
+                    "image[]",
                     fh,
                     filename=p.name or f"reference_{index}.png",
                     content_type=content_type,
