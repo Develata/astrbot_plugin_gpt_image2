@@ -1,13 +1,13 @@
 # astrbot_plugin_gpt_image2
 
-面向 `gpt-image-2` 的 AstrBot 生图/改图插件。它不是通用绘图框架，而是一个窄域稳定插件：命令与 LLM Tool 都只提交后台任务，最终图片由插件后台直接发送到原会话。
+面向 `gpt-image-2` 的 AstrBot 生图/改图插件。它是一个只针对gpt-image-2 的针对性稳定插件，核心设计在于：命令与 LLM Tool 都只提交后台任务，最终图片由插件后台直接发送到原会话，并且走单独的模型，不依赖主模型，用最简洁的方法增强了插件稳定性；降低了耦合度。
 
 ## 设计目标
 
 - 只支持 `gpt-image-2` 兼容 Images API endpoint；fallback 也必须是同一 API 形态。
 - 只走 OpenAI-compatible Images API：`/v1/images/generations` 与 `/v1/images/edits`。
 - 支持命令触发与 LLM Tool 触发。
-- LLM Tool **不等待最终图片**，只返回 `job_id`。
+- LLM Tool **不等待最终图片**，只返回 `job_id`(有效避免超时)。
 - 后台 worker 完成后主动发送图片。
 - 失败时直接发送脱敏、截断后的原始错误摘要，不再调用 AstrBot LLM 润色。
 - 内置本地队列与单并发保护，避免长图任务重复提交导致 429。
@@ -213,3 +213,7 @@ python tests/smoke_import_modes.py
 - AstrBot Plugin Configuration Wiki：https://github.com/AstrBotDevs/AstrBot/wiki/en-dev-star-guides-plugin-config
 - AstrBot AI / LLM Tool 指南：https://github.com/AstrBotDevs/AstrBot/wiki/zh-dev-star-guides-ai
 - OmniDraw 参考实现（参数解析、缓存清理、配置组织等设计）：https://github.com/diaomin66/astrbot_plugin_omnidraw
+
+## 鸣谢
+- AstrBot：感谢提供强大、可扩展的机器人插件框架。
+- OmniDraw：https://github.com/diaomin66/astrbot_plugin_omnidraw
