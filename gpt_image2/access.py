@@ -52,6 +52,9 @@ class AccessController:
         decision = self._check_group(origin)
         if not decision.allowed:
             return decision
+        decision = self._check_user_blacklist(origin)
+        if not decision.allowed:
+            return decision
         user_ids = _split_ids(self.config.user_whitelist)
         if not user_ids:
             return AccessDecision(True)
@@ -89,6 +92,9 @@ class AccessController:
         decision = self._check_group(origin)
         if not decision.allowed:
             return decision
+        decision = self._check_user_blacklist(origin)
+        if not decision.allowed:
+            return decision
         user_ids = _split_ids(self.config.user_whitelist)
         if not user_ids:
             return AccessDecision(True)
@@ -110,6 +116,12 @@ class AccessController:
             return AccessDecision(True)
         if not origin.group_id or origin.group_id not in group_ids:
             return AccessDecision(False, silent=True, reason="group_not_whitelisted")
+        return AccessDecision(True)
+
+    def _check_user_blacklist(self, origin: JobOrigin) -> AccessDecision:
+        user_ids = _split_ids(self.config.user_blacklist)
+        if user_ids and origin.sender_id in user_ids:
+            return AccessDecision(False, reason="user_blacklisted")
         return AccessDecision(True)
 
     def _daily_used(self, sender_id: str) -> int:

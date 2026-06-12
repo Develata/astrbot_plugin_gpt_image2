@@ -225,7 +225,12 @@ def test_llm_tool_uses_usage_limits() -> None:
             sys.modules["astrbot.api.star"].Context(),
             {
                 "api": {"api_key": "sk-tes...test"},
-                "access": {"enabled": True, "user_whitelist": "allowed-user", "non_whitelist_daily_limit": 0},
+                "access": {
+                    "enabled": True,
+                    "user_blacklist": "blocked-user",
+                    "user_whitelist": "blocked-user,allowed-user",
+                    "non_whitelist_daily_limit": 0,
+                },
             },
         )
 
@@ -252,7 +257,7 @@ def test_llm_tool_uses_usage_limits() -> None:
         with tempfile.TemporaryDirectory() as td:
             plugin.access = mod.AccessController(config=plugin.config.access, state_path=Path(td) / "access_state.json")
             result = asyncio.run(plugin.gpt_image2_generate(FakeEvent(), "a cat"))
-        assert "不在 GPT Image 2 用户白名单" in result
+        assert "用户黑名单" in result
     finally:
         try:
             sys.path.remove(str(REPO))

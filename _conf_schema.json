@@ -248,6 +248,11 @@
         "description": "启用使用限制",
         "default": false
       },
+      "user_blacklist": {
+        "type": "text",
+        "description": "用户 ID 黑名单",
+        "default": ""
+      },
       "user_whitelist": {
         "type": "text",
         "description": "用户 ID 白名单",

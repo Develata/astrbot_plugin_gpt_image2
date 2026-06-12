@@ -17,7 +17,7 @@ class APIConfig:
     api_key: str = ""
     model: str = "gpt-image-2"
     timeout_seconds: int = 900
-    user_agent: str = "AstrBot-GPT-Image2/0.2.2"
+    user_agent: str = "AstrBot-GPT-Image2/0.2.3"
     fallback_enabled: bool = False
     fallback_endpoints: list[APIEndpointConfig] = field(default_factory=list)
 
@@ -69,6 +69,7 @@ class PromptConfig:
 @dataclass(slots=True)
 class AccessConfig:
     enabled: bool = False
+    user_blacklist: str = ""
     user_whitelist: str = ""
     group_whitelist: str = ""
     non_whitelist_daily_limit: int = 0

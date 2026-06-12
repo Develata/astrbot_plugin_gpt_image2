@@ -209,6 +209,21 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
         assert ac.check(JobOrigin(session="s", sender_id="u2", group_id="g2", is_group_chat=True)).silent
         assert ac.check(JobOrigin(session="private", sender_id="u3", group_id="", is_group_chat=False)).allowed
 
+        blacklist_cfg = PluginConfig.from_mapping(
+            {
+                "access": {
+                    "enabled": True,
+                    "user_blacklist": "u-admin,u-bad",
+                    "user_whitelist": "u-admin",
+                    "non_whitelist_daily_limit": 10,
+                }
+            }
+        ).access
+        blacklist = AccessController(config=blacklist_cfg, state_path=root / "blacklist_access.json")
+        assert blacklist.check(JobOrigin(session="private", sender_id="u-admin", group_id="", is_group_chat=False)).reason == "user_blacklisted"
+        assert blacklist.check_and_reserve(JobOrigin(session="private", sender_id="u-bad", group_id="", is_group_chat=False)).reason == "user_blacklisted"
+        assert blacklist.check(JobOrigin(session="private", sender_id="u-ok", group_id="", is_group_chat=False)).allowed
+
         secondary = RecordingClient()
         client = FallbackImageClient(
             [
