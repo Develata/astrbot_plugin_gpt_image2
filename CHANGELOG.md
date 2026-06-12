@@ -4,6 +4,13 @@
 
 格式参考 Keep a Changelog，但按本插件的实际发布节奏保持轻量。
 
+## v1.0.0 - 2026-06-12
+
+### Release
+
+- 首个面向 AstrBot 插件市场提交的稳定版本；基于真实 AstrBot 实例验证 `v0.4.1` fallback-all 路由策略可用。
+- 保留默认管理员权限、LLM Tool 管理员默认权限、后台队列、使用限制、黑名单、fallback endpoint、静默模式与本地 smoke tests。
+
 ## v0.4.1 - 2026-06-12
 
 ### Changed
