@@ -4,6 +4,13 @@
 
 格式参考 Keep a Changelog，但按本插件的实际发布节奏保持轻量。
 
+## v0.3.0 - 2026-06-12
+
+### Fixed
+
+- 按 AstrBot `template_list` 官方格式补齐 fallback endpoint 配置中的 `__template_key` 运行时迁移，避免手写/旧配置在 WebUI 保存校验时报“缺少模板选择”。
+- 增强 sender/group id 提取兼容性：优先使用 `AstrMessageEvent.get_sender_id()` / `get_group_id()`，缺失时回退到 `message_obj.sender.user_id` / `message_obj.group_id` / `message_obj.group.group_id`，避免少数适配器或测试事件导致使用限制误判。
+
 ## v0.2.3 - 2026-06-12
 
 ### Added

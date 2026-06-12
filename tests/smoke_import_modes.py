@@ -150,6 +150,31 @@ def import_top_level_main() -> None:
         mod.GPTImage2Plugin(sys.modules["astrbot.api.star"].Context(), legacy_config)
         assert legacy_config["api"]["fallback_endpoints"] == []
         assert legacy_config.saved
+
+        legacy_list_config = MutableConfig(
+            {
+                "api": {
+                    "api_key": "sk-tes...test",
+                    "fallback_endpoints": [
+                        {
+                            "base_url": "https://backup.example/v1",
+                            "api_key": "sk-backup",
+                            "model": "gpt-image-2",
+                        },
+                        {
+                            "template": "fallback_endpoint",
+                            "base_url": "https://backup-template.example/v1",
+                            "api_key": "sk-template",
+                            "model": "gpt-image-2",
+                        }
+                    ],
+                }
+            }
+        )
+        mod.GPTImage2Plugin(sys.modules["astrbot.api.star"].Context(), legacy_list_config)
+        assert legacy_list_config["api"]["fallback_endpoints"][0]["__template_key"] == "fallback_endpoint"
+        assert legacy_list_config["api"]["fallback_endpoints"][1]["__template_key"] == "fallback_endpoint"
+        assert legacy_list_config.saved
     finally:
         try:
             sys.path.remove(str(REPO))
@@ -265,6 +290,53 @@ def test_llm_tool_uses_usage_limits() -> None:
             pass
 
 
+def test_origin_id_fallbacks_use_message_obj() -> None:
+    clear_plugin_modules()
+    sys.path.insert(0, str(REPO))
+    try:
+        mod = importlib.import_module("main")
+        plugin = mod.GPTImage2Plugin(
+            sys.modules["astrbot.api.star"].Context(),
+            {"api": {"api_key": "sk-tes...test"}},
+        )
+
+        class Sender:
+            user_id = "sender-from-message-obj"
+
+        class Group:
+            group_id = "group-from-nested-group"
+
+        class MessageObj:
+            sender = Sender()
+            group = Group()
+
+        class FakeEvent:
+            unified_msg_origin = "stub:GroupMessage:g1"
+            message_obj = MessageObj()
+
+            def get_platform_name(self):
+                return "stub"
+
+            def get_sender_id(self):
+                return ""
+
+            def get_sender_name(self):
+                return "User"
+
+            def get_group_id(self):
+                return ""
+
+        origin = plugin._origin_from_event(FakeEvent())
+        assert origin.sender_id == "sender-from-message-obj"
+        assert origin.group_id == "group-from-nested-group"
+        assert origin.is_group_chat
+    finally:
+        try:
+            sys.path.remove(str(REPO))
+        except ValueError:
+            pass
+
+
 def import_package_main() -> None:
     clear_plugin_modules()
     sys.path.insert(0, str(PARENT))
@@ -287,6 +359,7 @@ def main() -> None:
     import_top_level_main()
     test_silent_group_deny_stops_command_event()
     test_llm_tool_uses_usage_limits()
+    test_origin_id_fallbacks_use_message_obj()
     import_package_main()
     print("import mode smoke passed")
 

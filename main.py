@@ -52,7 +52,8 @@ def _drop_legacy_fallback_endpoints_config(raw_config: dict) -> None:
     api_config = raw_config.get("api") if isinstance(raw_config, dict) else None
     if not isinstance(api_config, dict):
         return
-    if isinstance(api_config.get("fallback_endpoints"), str):
+    fallback_endpoints = api_config.get("fallback_endpoints")
+    if isinstance(fallback_endpoints, str):
         api_config["fallback_endpoints"] = []
         save_config = getattr(raw_config, "save_config", None)
         if callable(save_config):
@@ -60,13 +61,27 @@ def _drop_legacy_fallback_endpoints_config(raw_config: dict) -> None:
                 save_config()
             except Exception as exc:  # pragma: no cover - defensive runtime migration.
                 logger.warning("Failed to save migrated GPT Image 2 fallback config: %s", exc)
+        return
+    if isinstance(fallback_endpoints, list):
+        changed = False
+        for item in fallback_endpoints:
+            if isinstance(item, dict) and not item.get("__template_key"):
+                item["__template_key"] = item.get("template") or "fallback_endpoint"
+                changed = True
+        if changed:
+            save_config = getattr(raw_config, "save_config", None)
+            if callable(save_config):
+                try:
+                    save_config()
+                except Exception as exc:  # pragma: no cover - defensive runtime migration.
+                    logger.warning("Failed to save migrated GPT Image 2 fallback config: %s", exc)
 
 
 @register(
     PLUGIN_NAME,
     "Develata",
     "面向 gpt-image-2 的稳定生图/改图插件，支持命令与 LLM Tool，内置后台任务队列与并发控制。",
-    "0.2.3",
+    "0.3.0",
     "https://github.com/Develata/astrbot_plugin_gpt_image2",
 )
 class GPTImage2Plugin(Star):
@@ -462,12 +477,12 @@ class GPTImage2Plugin(Star):
         return FallbackImageClient(clients) if len(clients) > 1 else clients[0][1]
 
     def _origin_from_event(self, event: AstrMessageEvent) -> JobOrigin:
-        raw_group_id = event.get_group_id()
+        raw_group_id = _event_group_id(event)
         group_id = _safe_id(raw_group_id)
         return JobOrigin(
             session=event.unified_msg_origin,
             platform_name=str(event.get_platform_name()),
-            sender_id=_safe_id(event.get_sender_id()),
+            sender_id=_event_sender_id(event),
             sender_name=str(event.get_sender_name()),
             group_id=group_id,
             is_group_chat=_is_group_event(event, group_id),
@@ -618,6 +633,36 @@ def _safe_id(value: Any) -> str:
         return ""
     text = str(value).strip()
     return "" if text.lower() == "none" else text
+
+
+def _call_event_method(event: Any, name: str) -> Any:
+    method = getattr(event, name, None)
+    if not callable(method):
+        return ""
+    try:
+        return method()
+    except Exception:
+        return ""
+
+
+def _event_sender_id(event: Any) -> str:
+    sender_id = _safe_id(_call_event_method(event, "get_sender_id"))
+    if sender_id:
+        return sender_id
+    sender = getattr(getattr(event, "message_obj", None), "sender", None)
+    return _safe_id(getattr(sender, "user_id", ""))
+
+
+def _event_group_id(event: Any) -> str:
+    group_id = _safe_id(_call_event_method(event, "get_group_id"))
+    if group_id:
+        return group_id
+    message_obj = getattr(event, "message_obj", None)
+    group_id = _safe_id(getattr(message_obj, "group_id", ""))
+    if group_id:
+        return group_id
+    group = getattr(message_obj, "group", None)
+    return _safe_id(getattr(group, "group_id", ""))
 
 
 HELP_TEXT = """GPT Image 2 Stable 用法

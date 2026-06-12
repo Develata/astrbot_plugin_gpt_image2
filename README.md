@@ -98,6 +98,8 @@ Fallback Model: gpt-image-2
 
 每个备用 API 使用自己填写的 `Fallback Model`。若留空，运行时默认使用 `gpt-image-2`。
 
+手写配置时需保留 `__template_key: fallback_endpoint`；v0.3.0 起插件启动时会为缺失该字段的旧 list 配置自动补齐，以符合 AstrBot `template_list` 的保存校验规则。
+
 保守策略：
 
 - 只在明确安全的状态码后 fallback：`401` / `403` / `404` / `429`。
