@@ -233,6 +233,8 @@ class JobManager:
                     output_format=job.request.output_format,
                     background=job.request.background,
                 )
+            job.routed_endpoint = response.get("__gpt_image2_endpoint")
+            job.routed_model = response.get("__gpt_image2_model")
             stage = "parse_response"
             kind, value = extract_image_payload(response)
             if kind == "b64_json":
@@ -248,7 +250,15 @@ class JobManager:
             if job.output_path and not str(job.output_path).startswith(("http://", "https://")):
                 self.cleanup_cache(exclude_paths={job.output_path})
             stage = "deliver_image"
+            route_notice = self._route_notice(job)
             caption = self._finish_caption(job) if self.config.runtime.send_finish_message and not self.config.runtime.quiet_mode else None
+            if route_notice and caption:
+                caption = f"{caption}\n{route_notice}"
+            elif route_notice:
+                try:
+                    await self.sender.send_text(job.origin.session, route_notice)
+                except Exception:
+                    pass
             await self.sender.send_image(job.origin.session, job.output_path, caption=caption)
         except Exception as exc:
             job.status = JobStatus.FAILED
@@ -285,6 +295,14 @@ class JobManager:
             elapsed = f"\nelapsed: {job.finished_at - job.started_at:.1f}s"
         return f"✅ GPT Image 2 任务完成\njob_id: {job.job_id}{elapsed}"
 
+    def _route_notice(self, job: ImageJob) -> str:
+        if self.config.runtime.quiet_mode:
+            return ""
+        if not job.routed_endpoint or job.routed_endpoint == "primary":
+            return ""
+        model = f" / model: {job.routed_model}" if job.routed_model else ""
+        return f"fallback: 已路由到 {job.routed_endpoint}{model}"
+
 
 def describe_job(job: ImageJob) -> str:
     lines = [
@@ -298,6 +316,11 @@ def describe_job(job: ImageJob) -> str:
         lines.append(f"queue_position: {job.queue_position}")
     if job.output_path:
         lines.append(f"output: {job.output_path}")
+    if job.routed_endpoint:
+        route = f"{job.routed_endpoint}"
+        if job.routed_model:
+            route += f" / model: {job.routed_model}"
+        lines.append(f"route: {route}")
     if job.error:
         lines.append(f"error: {job.error}")
     return "\n".join(lines)

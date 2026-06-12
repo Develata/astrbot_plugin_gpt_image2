@@ -48,6 +48,8 @@ class ImageJob:
     started_at: float | None = None
     finished_at: float | None = None
     output_path: str | None = None
+    routed_endpoint: str | None = None
+    routed_model: str | None = None
     error: str | None = None
     queue_position: int = 0
 
@@ -73,6 +75,8 @@ class ImageJob:
             started_at=data.get("started_at"),
             finished_at=data.get("finished_at"),
             output_path=data.get("output_path"),
+            routed_endpoint=data.get("routed_endpoint"),
+            routed_model=data.get("routed_model"),
             error=data.get("error"),
             queue_position=int(data.get("queue_position", 0)),
         )

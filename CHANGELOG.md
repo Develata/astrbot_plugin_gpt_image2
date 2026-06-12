@@ -4,6 +4,13 @@
 
 格式参考 Keep a Changelog，但按本插件的实际发布节奏保持轻量。
 
+## v0.4.1 - 2026-06-12
+
+### Changed
+
+- Fallback endpoint 策略调整为：当前 endpoint 只要报错就继续尝试下一条 fallback endpoint，包括 DNS/连接失败、HTTP 错误、timeout 与 `5xx`。
+- 非静默模式下，如果最终使用了 fallback endpoint，完成提示中会显示实际路由到的 endpoint 与 model；静默模式不额外提示 fallback 路由信息。
+
 ## v0.4.0 - 2026-06-12
 
 ### Changed

@@ -43,12 +43,21 @@ class FailingClient:
 
 
 class RecordingClient(FakeClient):
-    def __init__(self) -> None:
+    def __init__(self, model: str = "recording-model") -> None:
         self.calls = 0
+        self.model = model
 
     async def generate(self, **kwargs):
         self.calls += 1
         return await super().generate(**kwargs)
+
+
+class RoutedClient(FakeClient):
+    async def generate(self, **kwargs):
+        response: dict = await super().generate(**kwargs)
+        response["__gpt_image2_endpoint"] = "fallback_1"
+        response["__gpt_image2_model"] = "fallback-model"
+        return response
 
 
 class FakeSender:
@@ -105,6 +114,51 @@ async def test_success_send_image_even_without_finish_caption() -> None:
         assert len(sender.images) == 1
         assert sender.images[0][2] is None
         assert Path(done.output_path).read_bytes() == b"png-bytes"
+
+
+async def test_fallback_route_notice_and_quiet_mode() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cfg = PluginConfig.from_mapping(
+            {
+                "api": {"base_url": "https://example.test/v1", "api_key": "sk-tes...9012"},
+                "runtime": {"send_start_message": False},
+            }
+        )
+        sender = FakeSender()
+        manager = JobManager(config=cfg, client=RoutedClient(), sender=sender, data_dir=Path(td))
+        await manager.start()
+        try:
+            job = await manager.enqueue(
+                JobRequest(operation="generation", prompt="black cat", size="1536x1024", quality="medium"),
+                JobOrigin(session="telegram:chat", sender_id="u1", platform_name="telegram"),
+            )
+            done = await wait_terminal(manager, job.job_id)
+        finally:
+            await manager.stop()
+        assert done.routed_endpoint == "fallback_1"
+        assert done.routed_model == "fallback-model"
+        assert "fallback: 已路由到 fallback_1 / model: fallback-model" in sender.images[0][2]
+
+    with tempfile.TemporaryDirectory() as td:
+        quiet_cfg = PluginConfig.from_mapping(
+            {
+                "api": {"base_url": "https://example.test/v1", "api_key": "sk-tes...9012"},
+                "runtime": {"send_start_message": False, "quiet_mode": True},
+            }
+        )
+        quiet_sender = FakeSender()
+        manager = JobManager(config=quiet_cfg, client=RoutedClient(), sender=quiet_sender, data_dir=Path(td))
+        await manager.start()
+        try:
+            job = await manager.enqueue(
+                JobRequest(operation="generation", prompt="black cat", size="1536x1024", quality="medium"),
+                JobOrigin(session="telegram:chat", sender_id="u1", platform_name="telegram"),
+            )
+            await wait_terminal(manager, job.job_id)
+        finally:
+            await manager.stop()
+        assert quiet_sender.texts == []
+        assert quiet_sender.images[0][2] is None
 
 
 async def test_delivery_failure_stage_and_state() -> None:
@@ -233,20 +287,17 @@ async def test_cache_cleanup_and_access_and_fallback() -> None:
         )
         await client.generate(prompt="x", size="1024x1024", quality="low", output_format="png", background="auto")
         assert secondary.calls == 1
-        timeout_secondary = RecordingClient()
+        timeout_secondary = RecordingClient(model="timeout-fallback-model")
         client = FallbackImageClient(
             [
                 ("timeout", FailingClient(TimeoutError("maybe still running"))),
-                ("should_not_run", timeout_secondary),
+                ("should_run", timeout_secondary),
             ]
         )
-        try:
-            await client.generate(prompt="x", size="1024x1024", quality="low", output_format="png", background="auto")
-        except RuntimeError as exc:
-            assert "maybe still running" in str(exc)
-        else:
-            raise AssertionError("expected conservative no-fallback failure")
-        assert timeout_secondary.calls == 0
+        response = await client.generate(prompt="x", size="1024x1024", quality="low", output_format="png", background="auto")
+        assert timeout_secondary.calls == 1
+        assert response["__gpt_image2_endpoint"] == "should_run"
+        assert response["__gpt_image2_model"] == "timeout-fallback-model"
 
         cfg = PluginConfig.from_mapping(
             {
@@ -323,6 +374,7 @@ def test_payload_helpers() -> None:
 async def main() -> None:
     test_payload_helpers()
     await test_success_send_image_even_without_finish_caption()
+    await test_fallback_route_notice_and_quiet_mode()
     await test_delivery_failure_stage_and_state()
     await test_per_user_queue_limit_and_global_clamp()
     await test_cache_cleanup_and_access_and_fallback()

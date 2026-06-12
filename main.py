@@ -81,7 +81,7 @@ def _drop_legacy_fallback_endpoints_config(raw_config: dict) -> None:
     PLUGIN_NAME,
     "Develata",
     "面向 gpt-image-2 的稳定生图/改图插件，支持命令与 LLM Tool，内置后台任务队列与并发控制。",
-    "0.4.0",
+    "0.4.1",
     "https://github.com/Develata/astrbot_plugin_gpt_image2",
 )
 class GPTImage2Plugin(Star):
