@@ -22,6 +22,7 @@ PARENT = REPO.parent
 def install_astrbot_stubs() -> None:
     astrbot = types.ModuleType("astrbot")
     api = types.ModuleType("astrbot.api")
+    core = types.ModuleType("astrbot.core")
     event = types.ModuleType("astrbot.api.event")
     star = types.ModuleType("astrbot.api.star")
     comps = types.ModuleType("astrbot.api.message_components")
@@ -38,13 +39,42 @@ def install_astrbot_stubs() -> None:
 
     api.logger = Logger()
 
+    class SharedPreferences:
+        def __init__(self):
+            self.store = {}
+
+        def get(self, key, default=None, **kwargs):
+            return self.store.get(key, default)
+
+        def put(self, key, value, **kwargs):
+            self.store[key] = value
+
+    core.sp = SharedPreferences()  # type: ignore[attr-defined]
+
+    class PermissionType:
+        ADMIN = "admin"
+        MEMBER = "member"
+
     class Filter:
         def command(self, *args, **kwargs):
-            return lambda func: func
+            def decorator(func):
+                existing = getattr(func, "__astrbot_stub_commands__", [])
+                setattr(func, "__astrbot_stub_commands__", [*existing, args[0] if args else None])
+                return func
+
+            return decorator
+
+        def permission_type(self, permission_type, *args, **kwargs):
+            def decorator(func):
+                setattr(func, "__astrbot_stub_permission_type__", permission_type)
+                return func
+
+            return decorator
 
         def llm_tool(self, *args, **kwargs):
             return lambda func: func
 
+    Filter.PermissionType = PermissionType  # type: ignore[attr-defined]
     event.filter = Filter()
 
     class AstrMessageEvent:
@@ -90,6 +120,7 @@ def install_astrbot_stubs() -> None:
     sys.modules.update(
         {
             "astrbot": astrbot,
+            "astrbot.core": core,
             "astrbot.api": api,
             "astrbot.api.event": event,
             "astrbot.api.star": star,
@@ -117,6 +148,29 @@ def import_top_level_main() -> None:
         assert opts["size"] == "1024x1024"
         assert opts["quality"] == "high"
         assert plugin._submit_message("job", "generation", 1)
+        expected_admin_commands = {
+            "gptimg",
+            "gptedit",
+            "gptimg_status",
+            "gptimg_cancel",
+            "gptimg_cache",
+            "gptimg_cache_clear",
+            "gptimg_help",
+        }
+        for command_name in expected_admin_commands:
+            handler = getattr(plugin, command_name)
+            assert getattr(handler, "__astrbot_stub_permission_type__", None) == mod.filter.PermissionType.ADMIN
+        sp = sys.modules["astrbot.core"].sp
+        sp.store.clear()
+        plugin._ensure_default_llm_tool_permissions()
+        tool_permissions = sp.store["tool_permissions"]["_default"]
+        assert tool_permissions["gpt_image2_generate"] == "admin"
+        assert tool_permissions["gpt_image2_edit"] == "admin"
+        sp.store["tool_permissions"] = {"_default": {"gpt_image2_generate": "member"}}
+        plugin._ensure_default_llm_tool_permissions()
+        tool_permissions = sp.store["tool_permissions"]["_default"]
+        assert tool_permissions["gpt_image2_generate"] == "member"
+        assert tool_permissions["gpt_image2_edit"] == "admin"
 
         class StopEvent:
             def __init__(self):

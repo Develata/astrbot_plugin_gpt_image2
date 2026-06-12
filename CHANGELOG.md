@@ -4,6 +4,14 @@
 
 格式参考 Keep a Changelog，但按本插件的实际发布节奏保持轻量。
 
+## v0.4.0 - 2026-06-12
+
+### Changed
+
+- 收紧所有 `/gptimg*` 与 `/gptedit` 指令的默认 AstrBot 权限：从框架默认的“所有人”改为 `PermissionType.ADMIN`，避免默认安装后任何人都能消耗生图 API key。
+- 首次初始化时将 `gpt_image2_generate` / `gpt_image2_edit` 两个 LLM Tool 的默认 AstrBot 工具权限补为 `admin`；若用户已显式配置过对应工具权限，则保留现有配置。
+- README 在命令章节醒目标注：插件默认不开放所有人权限，因为默认开放给所有人的生图插件通常不能保护好自己的 API key，容易被无意或恶意调用用爆额度；如需下放给普通成员，必须显式调整 AstrBot 指令/工具权限并配合插件内使用限制。
+
 ## v0.3.0 - 2026-06-12
 
 ### Fixed

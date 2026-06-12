@@ -81,7 +81,7 @@ def _drop_legacy_fallback_endpoints_config(raw_config: dict) -> None:
     PLUGIN_NAME,
     "Develata",
     "面向 gpt-image-2 的稳定生图/改图插件，支持命令与 LLM Tool，内置后台任务队列与并发控制。",
-    "0.3.0",
+    "0.4.0",
     "https://github.com/Develata/astrbot_plugin_gpt_image2",
 )
 class GPTImage2Plugin(Star):
@@ -110,6 +110,35 @@ class GPTImage2Plugin(Star):
         self.manager: JobManager | None = None
         self.access: AccessController | None = None
 
+    def _ensure_default_llm_tool_permissions(self) -> None:
+        """Seed GPT Image 2 LLM tools as admin-only unless explicitly configured.
+
+        AstrBot's current non-builtin tool fallback is member-level. For a paid
+        image-generation key, the safer plugin default is admin-only; users can
+        still deliberately relax the permission in AstrBot WebUI.
+        """
+        try:
+            from astrbot.core import sp as astrbot_sp  # type: ignore
+        except Exception:  # pragma: no cover - optional outside AstrBot runtime.
+            return
+        try:
+            perms = astrbot_sp.get("tool_permissions", {}, scope="global", scope_id="global")
+            if not isinstance(perms, dict):
+                perms = {}
+            defaults = perms.get("_default", {})
+            if not isinstance(defaults, dict):
+                defaults = {}
+            changed = False
+            for tool_name in ("gpt_image2_generate", "gpt_image2_edit"):
+                if tool_name not in defaults:
+                    defaults[tool_name] = "admin"
+                    changed = True
+            if changed:
+                perms["_default"] = defaults
+                astrbot_sp.put("tool_permissions", perms, scope="global", scope_id="global")
+        except Exception as exc:  # pragma: no cover - defensive runtime hardening.
+            logger.warning("Failed to seed GPT Image 2 LLM tool permissions: %s", exc)
+
     async def initialize(self) -> None:
         errors = self.config.validate()
         if errors:
@@ -125,6 +154,7 @@ class GPTImage2Plugin(Star):
             data_dir=data_dir,
         )
         await self.manager.start()
+        self._ensure_default_llm_tool_permissions()
         logger.info("GPT Image 2 plugin initialized")
 
     async def terminate(self) -> None:
@@ -134,6 +164,7 @@ class GPTImage2Plugin(Star):
             await self.session.close()
         logger.info("GPT Image 2 plugin terminated")
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("gptimg")
     async def gptimg(self, event: AstrMessageEvent):
         """使用 gpt-image-2 提交文生图后台任务。用法：/gptimg [--size 1536x1024] [--quality medium] <prompt>"""
@@ -179,6 +210,7 @@ class GPTImage2Plugin(Star):
         else:
             _stop_event_silently(event)
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("gptedit")
     async def gptedit(self, event: AstrMessageEvent):
         """使用 gpt-image-2 提交改图后台任务。支持当前消息图片与引用消息图片。"""
@@ -232,6 +264,7 @@ class GPTImage2Plugin(Star):
         else:
             _stop_event_silently(event)
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("gptimg_status")
     async def gptimg_status(self, event: AstrMessageEvent):
         """查询 GPT Image 2 任务状态。用法：/gptimg_status [job_id]"""
@@ -249,6 +282,7 @@ class GPTImage2Plugin(Star):
             return
         yield event.plain_result("最近 GPT Image 2 任务：\n\n" + "\n\n".join(describe_job(job) for job in recent))
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("gptimg_cancel")
     async def gptimg_cancel(self, event: AstrMessageEvent):
         """取消尚未开始的 GPT Image 2 queued 任务。用法：/gptimg_cancel <job_id>"""
@@ -265,6 +299,7 @@ class GPTImage2Plugin(Star):
             return
         yield event.plain_result(describe_job(job))
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("gptimg_cache")
     async def gptimg_cache(self, event: AstrMessageEvent):
         """查看 GPT Image 2 输出图片缓存。"""
@@ -281,6 +316,7 @@ class GPTImage2Plugin(Star):
             f"job_ttl_hours: {self.config.runtime.job_ttl_hours}"
         )
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("gptimg_cache_clear")
     async def gptimg_cache_clear(self, event: AstrMessageEvent):
         """手动执行 GPT Image 2 输出图片缓存清理。"""
@@ -296,6 +332,7 @@ class GPTImage2Plugin(Star):
             f"after_mb: {(result.after.total_mb if result.after else 0):.2f}"
         )
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("gptimg_help")
     async def gptimg_help(self, event: AstrMessageEvent):
         """查看 GPT Image 2 插件帮助。"""
